@@ -7,6 +7,7 @@ export default function RootLayout() {
       <Stack.Screen name="cadastro" />
       <Stack.Screen name="recuperar-senha" />
       <Stack.Screen name="nova-senha" />
+      <Stack.Screen name="(tabs)" />
     </Stack>
   );
 }

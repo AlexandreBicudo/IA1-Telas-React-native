@@ -36,7 +36,8 @@ export default function LoginScreen() {
     if (!email || !senha) {
       return Alert.alert('Atenção', 'Preencha todos os campos.');
     }
-    Alert.alert('Sucesso', 'Autenticando...');
+    // Fase 3: substituir por supabase.auth.signInWithPassword(...).
+    router.replace('/catalogo');
   };
 
   return (
