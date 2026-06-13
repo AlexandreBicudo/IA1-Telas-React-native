@@ -1,8 +1,9 @@
 import { FontAwesome } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 
 import { GColors, GSpacing, brandFont } from '@/constants/gourmet-theme';
+import { authErrorMessage, signOut } from '@/services/authService';
 import { getChefById, getMyChefProfile } from '@/services/chefService';
 import type { ChefListing, VerificationStatus } from '@/types/database';
 
@@ -25,10 +27,20 @@ const VERIFICATION_UI: Record<
 };
 
 export default function PerfilScreen() {
+  const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const chefId = typeof params.id === 'string' ? params.id : undefined;
   // Sem id => perfil do próprio profissional (editável). Com id => visão pública.
   const isOwnProfile = !chefId;
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      router.replace('/');
+    } catch (error) {
+      Alert.alert('Erro ao sair', authErrorMessage(error));
+    }
+  };
 
   const [chef, setChef] = useState<ChefListing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -181,6 +193,13 @@ export default function PerfilScreen() {
           <Text style={styles.hint}>
             Complete seu portfólio e experiências para acelerar a validação do seu perfil.
           </Text>
+        )}
+
+        {isOwnProfile && (
+          <TouchableOpacity style={styles.logout} onPress={handleLogout} activeOpacity={0.7}>
+            <FontAwesome name="sign-out" size={15} color={GColors.muted} />
+            <Text style={styles.logoutText}>Sair da conta</Text>
+          </TouchableOpacity>
         )}
       </ScrollView>
     </View>
@@ -429,5 +448,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 14,
     lineHeight: 18,
+  },
+  logout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 24,
+    paddingVertical: 12,
+  },
+  logoutText: {
+    fontSize: 14,
+    color: GColors.muted,
+    fontWeight: '600',
   },
 });

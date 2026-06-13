@@ -2,6 +2,7 @@ import { FontAwesome } from '@expo/vector-icons'; // Importação dos ícones
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     Image,
     KeyboardAvoidingView,
@@ -14,6 +15,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+
+import { authErrorMessage, signIn } from '@/services/authService';
 
 const COLORS = {
   dark: '#0A0A0A',
@@ -31,13 +34,21 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !senha) {
       return Alert.alert('Atenção', 'Preencha todos os campos.');
     }
-    // Fase 3: substituir por supabase.auth.signInWithPassword(...).
-    router.replace('/catalogo');
+    try {
+      setLoading(true);
+      await signIn({ email: email.trim(), password: senha });
+      router.replace('/catalogo');
+    } catch (error) {
+      Alert.alert('Erro ao entrar', authErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -104,11 +115,16 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.botao}
+          style={[styles.botao, loading && styles.botaoDisabled]}
           onPress={handleLogin}
           activeOpacity={0.85}
+          disabled={loading}
         >
-          <Text style={styles.textoBotao}>ENTRAR</Text>
+          {loading ? (
+            <ActivityIndicator color={COLORS.dark} />
+          ) : (
+            <Text style={styles.textoBotao}>ENTRAR</Text>
+          )}
         </TouchableOpacity>
 
         <View style={styles.divider}>
@@ -233,6 +249,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
+  },
+  botaoDisabled: {
+    opacity: 0.6,
   },
   textoBotao: {
     color: COLORS.dark,

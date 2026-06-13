@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     Image,
     KeyboardAvoidingView,
     Platform,
@@ -11,6 +13,9 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+
+import { authErrorMessage, signUp } from '@/services/authService';
+import type { UserRole } from '@/types/database';
 
 const COLORS = {
   dark: '#0A0A0A',
@@ -24,7 +29,41 @@ const COLORS = {
 
 export default function CadastroScreen() {
   const router = useRouter();
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [role, setRole] = useState<UserRole>('cliente');
   const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleCadastro = async () => {
+    if (!nome || !email || !senha) {
+      return Alert.alert('Atenção', 'Preencha todos os campos.');
+    }
+    try {
+      setLoading(true);
+      const result = await signUp({
+        email: email.trim(),
+        password: senha,
+        fullName: nome.trim(),
+        role,
+      });
+      if (!result.mock && !result.session) {
+        // Confirmação de e-mail ativada: não há sessão ainda.
+        Alert.alert(
+          'Quase lá!',
+          'Enviamos um e-mail de confirmação. Confirme para acessar sua conta.',
+          [{ text: 'OK', onPress: () => router.back() }],
+        );
+        return;
+      }
+      router.replace('/catalogo');
+    } catch (error) {
+      Alert.alert('Erro no cadastro', authErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -40,6 +79,29 @@ export default function CadastroScreen() {
         <Text style={styles.titulo}>Junte-se à Elite</Text>
         <Text style={styles.subtitulo}>Crie sua conta SeuChefe Gourmet.</Text>
 
+        {/* Seleção de papel */}
+        <Text style={styles.label}>EU SOU</Text>
+        <View style={styles.roleRow}>
+          <TouchableOpacity
+            style={[styles.roleBtn, role === 'cliente' && styles.roleBtnActive]}
+            onPress={() => setRole('cliente')}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.roleText, role === 'cliente' && styles.roleTextActive]}>
+              Cliente
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.roleBtn, role === 'chef' && styles.roleBtnActive]}
+            onPress={() => setRole('chef')}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.roleText, role === 'chef' && styles.roleTextActive]}>
+              Chef / Cozinheiro
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.label}>NOME COMPLETO</Text>
         <View style={styles.inputWrapper}>
           <Text style={styles.inputIcon}>👤</Text>
@@ -47,6 +109,8 @@ export default function CadastroScreen() {
             style={styles.input}
             placeholder="Chef Claude Troisgros"
             placeholderTextColor={COLORS.hint}
+            value={nome}
+            onChangeText={setNome}
           />
         </View>
 
@@ -57,6 +121,8 @@ export default function CadastroScreen() {
             style={styles.input}
             placeholder="seu@email.com"
             placeholderTextColor={COLORS.hint}
+            value={email}
+            onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
           />
@@ -69,6 +135,8 @@ export default function CadastroScreen() {
             style={styles.input}
             placeholder="Crie uma senha forte"
             placeholderTextColor={COLORS.hint}
+            value={senha}
+            onChangeText={setSenha}
             secureTextEntry={!showPass}
           />
           <TouchableOpacity onPress={() => setShowPass(!showPass)}>
@@ -76,8 +144,16 @@ export default function CadastroScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.botao}>
-          <Text style={styles.textoBotao}>CADASTRAR</Text>
+        <TouchableOpacity
+          style={[styles.botao, loading && styles.botaoDisabled]}
+          onPress={handleCadastro}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color={COLORS.dark} />
+          ) : (
+            <Text style={styles.textoBotao}>CADASTRAR</Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -130,6 +206,33 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: '600',
   },
+  roleRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 18,
+  },
+  roleBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleBtnActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+  },
+  roleText: {
+    fontSize: 13,
+    color: COLORS.muted,
+    fontWeight: '600',
+  },
+  roleTextActive: {
+    color: COLORS.dark,
+  },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -163,6 +266,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 10,
+  },
+  botaoDisabled: {
+    opacity: 0.6,
   },
   textoBotao: {
     color: COLORS.dark,
