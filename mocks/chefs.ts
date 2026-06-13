@@ -1,0 +1,126 @@
+/**
+ * Dados de exemplo (mock) para desenvolvimento das telas enquanto o Supabase
+ * não está conectado. A camada services/ retorna estes dados; ao plugar o
+ * banco real, basta trocar a fonte sem alterar as telas.
+ */
+import type { ChefListing } from '@/types/database';
+
+export const MOCK_CHEFS: ChefListing[] = [
+  {
+    id: 'chef-001',
+    profileId: 'prof-001',
+    name: 'Camila Andrade',
+    avatarUrl: null,
+    city: 'São Paulo',
+    state: 'SP',
+    headline: 'Subchef de cozinha francesa contemporânea',
+    bio: 'Sete anos atuando em casas premiadas de São Paulo. Apaixonada por molhos clássicos e harmonização de menus degustação para jantares íntimos.',
+    yearsExperience: 7,
+    dailyRate: 480,
+    ratingAvg: 4.9,
+    ratingCount: 38,
+    verificationStatus: 'aprovado',
+    isAvailable: true,
+    specialties: ['Francesa', 'Contemporânea', 'Confeitaria'],
+    experiences: [
+      {
+        id: 'exp-1',
+        chef_id: 'chef-001',
+        restaurant_name: 'Maison Lumière',
+        role: 'Subchef',
+        start_date: '2019-03-01',
+        end_date: null,
+      },
+      {
+        id: 'exp-2',
+        chef_id: 'chef-001',
+        restaurant_name: 'Bistrô Verão',
+        role: 'Auxiliar de cozinha',
+        start_date: '2017-01-01',
+        end_date: '2019-02-01',
+      },
+    ],
+    portfolio: [
+      { id: 'p1', chef_id: 'chef-001', image_url: '', title: 'Menu degustação 5 tempos' },
+      { id: 'p2', chef_id: 'chef-001', image_url: '', title: 'Soufflé de chocolate' },
+    ],
+  },
+  {
+    id: 'chef-002',
+    profileId: 'prof-002',
+    name: 'Rafael Tanaka',
+    avatarUrl: null,
+    city: 'São Paulo',
+    state: 'SP',
+    headline: 'Auxiliar especialista em culinária japonesa',
+    bio: 'Formação em sushi tradicional e cozinha izakaya. Experiência em omakase para eventos privados de até 12 pessoas.',
+    yearsExperience: 5,
+    dailyRate: 520,
+    ratingAvg: 4.7,
+    ratingCount: 21,
+    verificationStatus: 'aprovado',
+    isAvailable: true,
+    specialties: ['Japonesa', 'Frutos do Mar'],
+    experiences: [
+      {
+        id: 'exp-3',
+        chef_id: 'chef-002',
+        restaurant_name: 'Kappo Hana',
+        role: 'Sushiman / Auxiliar',
+        start_date: '2020-06-01',
+        end_date: null,
+      },
+    ],
+    portfolio: [{ id: 'p3', chef_id: 'chef-002', image_url: '', title: 'Omakase 10 etapas' }],
+  },
+  {
+    id: 'chef-003',
+    profileId: 'prof-003',
+    name: 'Beatriz Lopes',
+    avatarUrl: null,
+    city: 'Campinas',
+    state: 'SP',
+    headline: 'Confeiteira e chef de cozinha vegana',
+    bio: 'Especialista em sobremesas autorais e menus plant-based de alta gastronomia, sem abrir mão da apresentação refinada.',
+    yearsExperience: 4,
+    dailyRate: 360,
+    ratingAvg: 4.5,
+    ratingCount: 14,
+    verificationStatus: 'pendente',
+    isAvailable: false,
+    specialties: ['Confeitaria', 'Vegana', 'Mediterrânea'],
+    experiences: [],
+    portfolio: [],
+  },
+  {
+    id: 'chef-004',
+    profileId: 'prof-004',
+    name: 'Henrique Salles',
+    avatarUrl: null,
+    city: 'Rio de Janeiro',
+    state: 'RJ',
+    headline: 'Subchef de carnes e churrasco gourmet',
+    bio: 'Domínio de cortes nobres, defumação e cozimento de baixa temperatura para experiências ao ar livre sofisticadas.',
+    yearsExperience: 9,
+    dailyRate: 600,
+    ratingAvg: 4.8,
+    ratingCount: 52,
+    verificationStatus: 'aprovado',
+    isAvailable: true,
+    specialties: ['Carnes', 'Brasileira', 'Contemporânea'],
+    experiences: [
+      {
+        id: 'exp-4',
+        chef_id: 'chef-004',
+        restaurant_name: 'Brasa & Sal',
+        role: 'Subchef',
+        start_date: '2016-02-01',
+        end_date: null,
+      },
+    ],
+    portfolio: [{ id: 'p4', chef_id: 'chef-004', image_url: '', title: 'Costela 14h defumada' }],
+  },
+];
+
+/** Perfil do profissional "logado" usado quando a tela de Perfil abre sem id. */
+export const MOCK_CURRENT_CHEF_ID = 'chef-001';
