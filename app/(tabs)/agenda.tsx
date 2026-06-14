@@ -14,6 +14,7 @@ import {
 
 import { GSpacing, brandFont, type Palette } from '@/constants/gourmet-theme';
 import { AccentBar, Panel, ScreenGradient } from '@/components/ui-gourmet';
+import { SkeletonBookingCard } from '@/components/skeleton';
 import { useColors } from '@/components/theme-context';
 import { getMyBookings, updateBookingStatus, type MyBookings } from '@/services/bookingService';
 import type { BookingStatus } from '@/types/database';
@@ -86,7 +87,7 @@ export default function AgendaScreen() {
         </View>
 
         {loading ? (
-          <ActivityIndicator color={c.primary} style={{ marginTop: 40 }} />
+          [1, 2, 3].map((n) => <SkeletonBookingCard key={n} />)
         ) : list.length === 0 ? (
           <View style={styles.emptyWrap}>
             <FontAwesome name="calendar-o" size={32} color={c.hint} />

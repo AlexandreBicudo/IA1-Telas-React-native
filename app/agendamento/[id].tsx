@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -19,6 +20,7 @@ import { Panel, ScreenGradient } from '@/components/ui-gourmet';
 import { GSpacing, brandFont, type Palette } from '@/constants/gourmet-theme';
 import { getBookingById, updateBookingStatus, type BookingDetail } from '@/services/bookingService';
 import { getOrCreateConversation, getMessages, sendMessage, subscribeToMessages, type ChatMessage } from '@/services/messageService';
+import { createReview, hasReviewed } from '@/services/reviewService';
 import type { BookingStatus } from '@/types/database';
 
 const STATUS_UI: Record<BookingStatus, { label: string; icon: string }> = {
@@ -52,13 +54,18 @@ export default function AgendamentoDetailScreen() {
   const [msgText, setMsgText] = useState('');
   const [sending, setSending] = useState(false);
   const [actioning, setActioning] = useState(false);
+  const [reviewed, setReviewed] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  // Carrega booking
+  // Carrega booking e verifica se já avaliou
   useEffect(() => {
     let active = true;
-    getBookingById(bookingId).then((b) => {
-      if (active) { setBooking(b); setLoadingBooking(false); }
+    Promise.all([getBookingById(bookingId), hasReviewed(bookingId)]).then(([b, alreadyReviewed]) => {
+      if (active) { setBooking(b); setReviewed(alreadyReviewed); setLoadingBooking(false); }
     });
     return () => { active = false; };
   }, [bookingId]);
@@ -108,6 +115,28 @@ export default function AgendamentoDetailScreen() {
     ]);
   };
 
+  const handleSubmitReview = async () => {
+    if (reviewRating === 0 || !booking) return;
+    try {
+      setSubmittingReview(true);
+      const isReviewingChef = role === 'client';
+      await createReview({
+        bookingId,
+        revieweeId: isReviewingChef ? booking.chefProfileId : booking.clientId,
+        chefId: isReviewingChef ? booking.chefId : undefined,
+        rating: reviewRating,
+        comment: reviewComment,
+      });
+      setReviewed(true);
+      setShowReviewModal(false);
+      Alert.alert('Avaliação enviada!', 'Obrigado pelo seu feedback.');
+    } catch (e) {
+      Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível enviar a avaliação.');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   const handleSend = async () => {
     if (!convId || !msgText.trim()) return;
     const text = msgText.trim();
@@ -148,6 +177,44 @@ export default function AgendamentoDetailScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}>
+
+      {/* Modal de avaliação */}
+      <Modal visible={showReviewModal} transparent animationType="fade" onRequestClose={() => setShowReviewModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: c.card, borderColor: c.border }]}>
+            <Text style={styles.modalTitle}>Avaliar {role === 'client' ? booking?.chefName : booking?.clientName}</Text>
+            <View style={styles.starsRow}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <TouchableOpacity key={n} onPress={() => setReviewRating(n)} hitSlop={8}>
+                  <FontAwesome name={n <= reviewRating ? 'star' : 'star-o'} size={36} color={c.primary} />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={[styles.reviewInput, { backgroundColor: c.dark, borderColor: c.border, color: c.cream }]}
+              placeholder="Comentário (opcional)"
+              placeholderTextColor={c.hint}
+              value={reviewComment}
+              onChangeText={setReviewComment}
+              multiline
+              textAlignVertical="top"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={[styles.modalBtn, { borderColor: c.border }]} onPress={() => setShowReviewModal(false)}>
+                <Text style={[styles.modalBtnText, { color: c.muted }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: c.primary, borderColor: c.primary, opacity: reviewRating === 0 ? 0.4 : 1 }]}
+                onPress={handleSubmitReview}
+                disabled={reviewRating === 0 || submittingReview}
+              >
+                {submittingReview ? <ActivityIndicator size="small" color="#fff" /> : <Text style={[styles.modalBtnText, { color: '#fff' }]}>Enviar</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <ScreenGradient style={styles.flex}>
         {/* Header */}
         <View style={styles.header}>
@@ -199,6 +266,21 @@ export default function AgendamentoDetailScreen() {
                 <ActionBtn label="Cancelar agendamento" color={c.danger} onPress={() => handleAction('cancelado')} styles={styles} />
               )}
             </View>
+          )}
+
+          {/* Avaliação */}
+          {booking.status === 'concluido' && (
+            reviewed ? (
+              <View style={styles.reviewedBadge}>
+                <FontAwesome name="star" size={14} color={c.primary} />
+                <Text style={styles.reviewedText}>Você já avaliou este serviço</Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.reviewBtn} onPress={() => { setReviewRating(0); setReviewComment(''); setShowReviewModal(true); }} activeOpacity={0.8}>
+                <FontAwesome name="star-o" size={16} color={c.primary} />
+                <Text style={styles.reviewBtnText}>Avaliar {role === 'client' ? 'o Chef' : 'o Cliente'}</Text>
+              </TouchableOpacity>
+            )
           )}
 
           {/* Chat */}
@@ -325,4 +407,18 @@ const makeStyles = (c: Palette) =>
     },
     sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' },
     sendBtnDisabled: { opacity: 0.4 },
+    // Avaliação
+    reviewBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: c.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 16, justifyContent: 'center' },
+    reviewBtnText: { fontSize: 15, fontWeight: '700', color: c.primary },
+    reviewedBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.primary, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16, marginBottom: 16 },
+    reviewedText: { fontSize: 14, color: c.primary, fontWeight: '600' },
+    // Modal
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+    modalBox: { width: '100%', borderRadius: 16, borderWidth: 1, padding: 24 },
+    modalTitle: { fontSize: 16, fontWeight: '700', color: c.cream, textAlign: 'center', marginBottom: 20 },
+    starsRow: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 20 },
+    reviewInput: { borderWidth: 1, borderRadius: 10, padding: 12, minHeight: 80, fontSize: 14, marginBottom: 20 },
+    modalActions: { flexDirection: 'row', gap: 12 },
+    modalBtn: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+    modalBtnText: { fontSize: 14, fontWeight: '700' },
   });

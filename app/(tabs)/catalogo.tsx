@@ -17,6 +17,7 @@ import {
 
 import { GSpacing, brandFont, type Palette } from '@/constants/gourmet-theme';
 import { AccentBar, Panel, ScreenGradient } from '@/components/ui-gourmet';
+import { SkeletonChefCard } from '@/components/skeleton';
 import { useColors, useTheme } from '@/components/theme-context';
 import { SPECIALTIES } from '@/constants/specialties';
 import { searchChefs } from '@/services/chefService';
@@ -223,7 +224,9 @@ export default function CatalogoScreen() {
         }
         ListEmptyComponent={
           loading ? (
-            <ActivityIndicator color={c.primary} style={{ marginTop: 40 }} />
+            <View style={{ paddingHorizontal: GSpacing.screen }}>
+              {[1, 2, 3].map((n) => <SkeletonChefCard key={n} />)}
+            </View>
           ) : (
             <View style={styles.emptyWrap}>
               <FontAwesome name="cutlery" size={32} color={c.hint} />

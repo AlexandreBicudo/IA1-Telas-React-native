@@ -5,6 +5,7 @@
  * (protegida por RLS: cada parte só vê os próprios agendamentos).
  */
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { getChefPushToken, getPushToken, sendPushToToken } from '@/services/notificationService';
 import type { BookingStatus, ServiceType } from '@/types/database';
 
 export interface BookingListItem {
@@ -125,6 +126,13 @@ export async function createBooking(params: {
     .eq('chef_id', params.chefId)
     .eq('date', params.eventDate);
 
+  // Notifica o chef sobre o novo pedido
+  const chefToken = await getChefPushToken(params.chefId);
+  if (chefToken) {
+    const dateLabel = new Date(params.eventDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    sendPushToToken(chefToken, '📅 Novo pedido de agendamento', `Você recebeu um pedido para ${dateLabel}. Acesse a aba Agenda.`);
+  }
+
   return { mock: false };
 }
 
@@ -175,6 +183,37 @@ export async function updateBookingStatus(id: string, status: BookingStatus): Pr
   if (!isSupabaseConfigured) return;
   const { error } = await supabase.from('bookings').update({ status }).eq('id', id);
   if (error) throw error;
+
+  // Notifica a outra parte sobre a mudança de status
+  try {
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('client_id, chef_id, event_date')
+      .eq('id', id)
+      .single();
+    if (!booking) return;
+
+    const { data: authData } = await supabase.auth.getUser();
+    const myId = authData.user?.id ?? '';
+
+    const dateLabel = new Date(booking.event_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    const msgs: Partial<Record<BookingStatus, string>> = {
+      confirmado:  `✅ Agendamento confirmado para ${dateLabel}!`,
+      cancelado:   `❌ Agendamento de ${dateLabel} foi cancelado.`,
+      concluido:   `⭐ Serviço de ${dateLabel} marcado como concluído!`,
+    };
+    const body = msgs[status];
+    if (!body) return;
+
+    // Se sou o chef, notificou o cliente — e vice-versa
+    const isChef = myId !== booking.client_id;
+    const token = isChef
+      ? await getPushToken(booking.client_id)
+      : await getChefPushToken(booking.chef_id);
+    if (token) sendPushToToken(token, 'SeuChefe Gourmet', body);
+  } catch {
+    // Falha silenciosa — não impede a atualização
+  }
 }
 
 /** Carrega os agendamentos do usuário, separados por papel. */

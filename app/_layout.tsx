@@ -1,8 +1,14 @@
 import { Stack } from 'expo-router';
+import { useEffect } from 'react';
 
 import { ThemeProvider } from '@/components/theme-context';
+import { registerAndSaveToken } from '@/services/notificationService';
 
 export default function RootLayout() {
+  useEffect(() => {
+    registerAndSaveToken();
+  }, []);
+
   return (
     <ThemeProvider>
       <Stack screenOptions={{ headerShown: false }}>
