@@ -131,6 +131,15 @@ export async function updateChefProfile(chefId: string, edit: ChefProfileEdit): 
   }
 }
 
+/** Salva a URL do avatar no perfil do usuário logado. */
+export async function updateAvatarUrl(url: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new Error('Sessão expirada.');
+  const { error } = await supabase.from('profiles').update({ avatar_url: url }).eq('id', auth.user.id);
+  if (error) throw error;
+}
+
 /** Atualiza dados básicos da conta (nome, cidade, UF). */
 export async function updateMyProfile(fields: {
   fullName?: string;

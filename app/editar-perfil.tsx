@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -21,7 +22,8 @@ import { useColors, useTheme } from '@/components/theme-context';
 import { SPECIALTIES } from '@/constants/specialties';
 import { authErrorMessage } from '@/services/authService';
 import { getMyChefProfile } from '@/services/chefService';
-import { updateChefProfile } from '@/services/profileService';
+import { getMyAccount, updateAvatarUrl, updateChefProfile } from '@/services/profileService';
+import { pickAndUploadAvatar } from '@/services/storageService';
 
 export default function EditarPerfilScreen() {
   const router = useRouter();
@@ -30,6 +32,7 @@ export default function EditarPerfilScreen() {
   const styles = useMemo(() => makeStyles(c), [c]);
 
   const [chefId, setChefId] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [headline, setHeadline] = useState('');
   const [bio, setBio] = useState('');
   const [dailyRate, setDailyRate] = useState('');
@@ -38,10 +41,11 @@ export default function EditarPerfilScreen() {
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     let active = true;
-    getMyChefProfile().then((chef) => {
+    Promise.all([getMyChefProfile(), getMyAccount()]).then(([chef, account]) => {
       if (!active) return;
       if (chef) {
         setChefId(chef.id);
@@ -52,12 +56,27 @@ export default function EditarPerfilScreen() {
         setIsAvailable(chef.isAvailable);
         setSpecialties(chef.specialties);
       }
+      if (account?.avatarUrl) setAvatarUrl(account.avatarUrl);
       setLoading(false);
     });
     return () => {
       active = false;
     };
   }, []);
+
+  const handlePickPhoto = async () => {
+    try {
+      setUploadingPhoto(true);
+      const url = await pickAndUploadAvatar();
+      if (!url) return;
+      await updateAvatarUrl(url);
+      setAvatarUrl(url);
+    } catch (e) {
+      Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível atualizar a foto.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const toggleSpecialty = (s: string) =>
     setSpecialties((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
@@ -105,11 +124,21 @@ export default function EditarPerfilScreen() {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.photoRow}>
           <View style={styles.photoCircle}>
-            <FontAwesome name="user" size={28} color={c.hint} />
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.photoImg} />
+            ) : (
+              <FontAwesome name="user" size={28} color={c.hint} />
+            )}
           </View>
-          <TouchableOpacity style={styles.photoBtn} disabled>
-            <FontAwesome name="camera" size={13} color={c.muted} />
-            <Text style={styles.photoBtnText}>Adicionar foto (em breve)</Text>
+          <TouchableOpacity style={styles.photoBtn} onPress={handlePickPhoto} disabled={uploadingPhoto}>
+            {uploadingPhoto ? (
+              <ActivityIndicator size="small" color={c.primary} />
+            ) : (
+              <>
+                <FontAwesome name="camera" size={13} color={c.primary} />
+                <Text style={styles.photoBtnText}>{avatarUrl ? 'Alterar foto' : 'Adicionar foto'}</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -203,8 +232,9 @@ const makeStyles = (c: Palette) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
+    photoImg: { width: '100%', height: '100%', borderRadius: 36 },
     photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    photoBtnText: { color: c.muted, fontSize: 13 },
+    photoBtnText: { color: c.primary, fontSize: 13, fontWeight: '600' },
     label: { fontSize: 10, color: c.primary, letterSpacing: 2, fontWeight: '600', marginBottom: 8 },
     inputWrapper: {
       backgroundColor: c.card,
