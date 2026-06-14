@@ -10,6 +10,7 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -22,8 +23,16 @@ import { useColors, useTheme } from '@/components/theme-context';
 import { SPECIALTIES } from '@/constants/specialties';
 import { authErrorMessage } from '@/services/authService';
 import { getMyChefProfile } from '@/services/chefService';
-import { getMyAccount, updateAvatarUrl, updateChefProfile } from '@/services/profileService';
-import { pickAndUploadAvatar } from '@/services/storageService';
+import {
+  addPortfolioItem,
+  getMyAccount,
+  removePortfolioItem,
+  updateAvatarUrl,
+  updateChefProfile,
+  validateChefProfileForActivation,
+} from '@/services/profileService';
+import { pickAndUploadAvatar, pickAndUploadPortfolioPhoto } from '@/services/storageService';
+import type { PortfolioItem } from '@/types/database';
 
 export default function EditarPerfilScreen() {
   const router = useRouter();
@@ -37,11 +46,13 @@ export default function EditarPerfilScreen() {
   const [bio, setBio] = useState('');
   const [dailyRate, setDailyRate] = useState('');
   const [yearsExperience, setYearsExperience] = useState('');
-  const [isAvailable, setIsAvailable] = useState(true);
+  const [isAvailable, setIsAvailable] = useState(false);
   const [specialties, setSpecialties] = useState<string[]>([]);
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -55,13 +66,12 @@ export default function EditarPerfilScreen() {
         setYearsExperience(chef.yearsExperience ? String(chef.yearsExperience) : '');
         setIsAvailable(chef.isAvailable);
         setSpecialties(chef.specialties);
+        setPortfolio(chef.portfolio ?? []);
       }
       if (account?.avatarUrl) setAvatarUrl(account.avatarUrl);
       setLoading(false);
     });
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
   const handlePickPhoto = async () => {
@@ -76,6 +86,57 @@ export default function EditarPerfilScreen() {
     } finally {
       setUploadingPhoto(false);
     }
+  };
+
+  const handleToggleVisibility = (val: boolean) => {
+    if (val) {
+      const missing = validateChefProfileForActivation({
+        headline,
+        bio,
+        dailyRate: Number(dailyRate),
+        yearsExperience: Number(yearsExperience),
+        specialties,
+        avatarUrl,
+      });
+      if (missing.length > 0) {
+        Alert.alert(
+          'Perfil incompleto',
+          `Para aparecer no catálogo, preencha:\n\n• ${missing.join('\n• ')}`,
+        );
+        return;
+      }
+    }
+    setIsAvailable(val);
+  };
+
+  const handleAddPortfolioPhoto = async () => {
+    if (!chefId) return;
+    try {
+      setUploadingPortfolio(true);
+      const url = await pickAndUploadPortfolioPhoto();
+      if (!url) return;
+      const title = `Prato ${portfolio.length + 1}`;
+      await addPortfolioItem(chefId, url, title);
+      setPortfolio((prev) => [...prev, { id: `local-${Date.now()}`, chef_id: chefId, image_url: url, title } as PortfolioItem]);
+    } catch (e) {
+      Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível adicionar a foto.');
+    } finally {
+      setUploadingPortfolio(false);
+    }
+  };
+
+  const handleDeletePortfolioItem = (item: PortfolioItem) => {
+    Alert.alert('Remover foto', `Remover "${item.title}" do portfólio?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Remover',
+        style: 'destructive',
+        onPress: async () => {
+          await removePortfolioItem(item.id);
+          setPortfolio((prev) => prev.filter((p) => p.id !== item.id));
+        },
+      },
+    ]);
   };
 
   const toggleSpecialty = (s: string) =>
@@ -110,6 +171,10 @@ export default function EditarPerfilScreen() {
     );
   }
 
+  const missingForActivation = validateChefProfileForActivation({
+    headline, bio, dailyRate: Number(dailyRate), yearsExperience: Number(yearsExperience), specialties, avatarUrl,
+  });
+
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
@@ -122,6 +187,7 @@ export default function EditarPerfilScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {/* Foto de perfil */}
         <View style={styles.photoRow}>
           <View style={styles.photoCircle}>
             {avatarUrl ? (
@@ -142,6 +208,33 @@ export default function EditarPerfilScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Toggle de visibilidade */}
+        <View style={[styles.visibilityCard, { borderColor: isAvailable ? c.success : c.border }]}>
+          <View style={styles.visibilityTop}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.visibilityTitle}>VISIBILIDADE NO CATÁLOGO</Text>
+              <Text style={[styles.visibilityStatus, { color: isAvailable ? c.success : c.muted }]}>
+                {isAvailable ? 'Ativo — aparece na busca' : 'Inativo — não aparece na busca'}
+              </Text>
+            </View>
+            <Switch
+              value={isAvailable}
+              onValueChange={handleToggleVisibility}
+              trackColor={{ false: c.border, true: c.success }}
+              thumbColor={isAvailable ? '#fff' : c.hint}
+            />
+          </View>
+          {!isAvailable && missingForActivation.length > 0 && (
+            <View style={styles.missingWrap}>
+              <Text style={styles.missingTitle}>Para ativar, preencha:</Text>
+              {missingForActivation.map((m) => (
+                <Text key={m} style={styles.missingItem}>• {m}</Text>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Campos de perfil */}
         <Text style={styles.label}>TÍTULO PROFISSIONAL</Text>
         <View style={styles.inputWrapper}>
           <TextInput
@@ -193,14 +286,31 @@ export default function EditarPerfilScreen() {
           })}
         </View>
 
-        <TouchableOpacity style={styles.availabilityToggle} onPress={() => setIsAvailable((v) => !v)} activeOpacity={0.8}>
-          <View style={[styles.checkbox, isAvailable && styles.checkboxOn]}>
-            {isAvailable && <FontAwesome name="check" size={11} color={c.onPrimary} />}
-          </View>
-          <Text style={styles.availabilityText}>Disponível para novos serviços</Text>
-        </TouchableOpacity>
+        {/* Portfólio de pratos */}
+        <Text style={[styles.label, { marginTop: 8 }]}>PORTFÓLIO DE PRATOS</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.portfolioScroll} contentContainerStyle={styles.portfolioContent}>
+          {portfolio.map((item) => (
+            <View key={item.id} style={styles.portfolioItem}>
+              <Image source={{ uri: item.image_url }} style={styles.portfolioThumb} resizeMode="cover" />
+              <TouchableOpacity style={styles.portfolioDelete} onPress={() => handleDeletePortfolioItem(item)}>
+                <FontAwesome name="times-circle" size={20} color={c.danger} />
+              </TouchableOpacity>
+              <Text style={styles.portfolioLabel} numberOfLines={1}>{item.title}</Text>
+            </View>
+          ))}
+          <TouchableOpacity style={styles.portfolioAdd} onPress={handleAddPortfolioPhoto} disabled={uploadingPortfolio}>
+            {uploadingPortfolio ? (
+              <ActivityIndicator color={c.primary} />
+            ) : (
+              <>
+                <FontAwesome name="plus" size={22} color={c.primary} />
+                <Text style={styles.portfolioAddText}>Adicionar{'\n'}prato</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
 
-        <GoldButton label="SALVAR PERFIL" onPress={handleSave} loading={saving} />
+        <GoldButton label="SALVAR PERFIL" onPress={handleSave} loading={saving} style={{ marginTop: 24 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -221,57 +331,40 @@ const makeStyles = (c: Palette) =>
     backBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
     headerTitle: { fontSize: 18, fontWeight: '700', color: c.cream, fontFamily: brandFont },
     scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 48, paddingTop: 12 },
-    photoRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
-    photoCircle: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor: c.card,
-      borderWidth: 1,
-      borderColor: c.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    photoImg: { width: '100%', height: '100%', borderRadius: 36 },
+    // Foto
+    photoRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 20 },
+    photoCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    photoImg: { width: '100%', height: '100%' },
     photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     photoBtnText: { color: c.primary, fontSize: 13, fontWeight: '600' },
+    // Visibilidade
+    visibilityCard: { borderWidth: 1.5, borderRadius: 12, padding: 14, marginBottom: 22 },
+    visibilityTop: { flexDirection: 'row', alignItems: 'center' },
+    visibilityTitle: { fontSize: 10, color: c.primary, letterSpacing: 2, fontWeight: '700' },
+    visibilityStatus: { fontSize: 13, marginTop: 3, fontWeight: '600' },
+    missingWrap: { borderTopWidth: 1, borderTopColor: c.border, marginTop: 12, paddingTop: 10 },
+    missingTitle: { fontSize: 12, color: c.warning, fontWeight: '600', marginBottom: 6 },
+    missingItem: { fontSize: 12, color: c.muted, lineHeight: 20 },
+    // Campos
     label: { fontSize: 10, color: c.primary, letterSpacing: 2, fontWeight: '600', marginBottom: 8 },
-    inputWrapper: {
-      backgroundColor: c.card,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: GSpacing.radius,
-      paddingHorizontal: 16,
-      marginBottom: 18,
-      height: GSpacing.inputHeight,
-      justifyContent: 'center',
-    },
+    inputWrapper: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: GSpacing.radius, paddingHorizontal: 16, marginBottom: 18, height: GSpacing.inputHeight, justifyContent: 'center' },
     textareaWrapper: { height: 110, paddingVertical: 12 },
     input: { fontSize: 15, color: c.cream },
     textarea: { height: '100%' },
     row: { flexDirection: 'row', gap: 12 },
     rowItem: { flex: 1 },
+    // Especialidades
     chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-    chip: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.card,
-    },
+    chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: c.border, backgroundColor: c.card },
     chipActive: { backgroundColor: c.primary, borderColor: c.primary },
     chipText: { fontSize: 13, color: c.muted, fontWeight: '600' },
-    availabilityToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 28 },
-    checkbox: {
-      width: 20,
-      height: 20,
-      borderRadius: 5,
-      borderWidth: 1,
-      borderColor: c.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    checkboxOn: { backgroundColor: c.primary, borderColor: c.primary },
-    availabilityText: { fontSize: 14, color: c.cream },
+    // Portfólio
+    portfolioScroll: { marginBottom: 8 },
+    portfolioContent: { gap: 12, paddingVertical: 4 },
+    portfolioItem: { width: 110 },
+    portfolioThumb: { width: 110, height: 110, borderRadius: 10, backgroundColor: c.card },
+    portfolioDelete: { position: 'absolute', top: -6, right: -6, backgroundColor: c.dark, borderRadius: 10 },
+    portfolioLabel: { fontSize: 11, color: c.muted, marginTop: 6, textAlign: 'center' },
+    portfolioAdd: { width: 110, height: 110, borderRadius: 10, borderWidth: 1.5, borderColor: c.primary, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    portfolioAddText: { fontSize: 12, color: c.primary, textAlign: 'center', fontWeight: '600' },
   });

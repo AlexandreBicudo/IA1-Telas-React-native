@@ -111,6 +111,18 @@ export async function getChefAvailableDates(chefId: string): Promise<string[]> {
   return Array.from(new Set((data ?? []).map((r) => r.date)));
 }
 
+/** Datas que já têm agendamento ativo (solicitado/confirmado/em_andamento). */
+export async function getChefBookedDates(chefId: string): Promise<string[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data } = await supabase
+    .from('bookings')
+    .select('event_date')
+    .eq('chef_id', chefId)
+    .in('status', ['solicitado', 'confirmado', 'em_andamento'])
+    .gte('event_date', today());
+  return Array.from(new Set((data ?? []).map((r) => (r.event_date as string).slice(0, 10))));
+}
+
 /** Marca o slot do dia como reservado (chamado ao confirmar o agendamento). */
 export async function markDateBooked(chefId: string, date: string): Promise<void> {
   if (!isSupabaseConfigured) return;

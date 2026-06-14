@@ -11,6 +11,47 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
+/** Sobe uma foto para o bucket avatars e devolve a URL pública. */
+async function uploadToAvatarsBucket(uri: string, path: string, mimeType: string): Promise<string> {
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new Error('Sessão expirada.');
+  const file = new File(uri);
+  const arrayBuffer = await file.arrayBuffer();
+  const { error } = await supabase.storage
+    .from('avatars')
+    .upload(path, arrayBuffer, { contentType: mimeType, upsert: true });
+  if (error) throw error;
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
+}
+
+/** Abre a galeria e faz upload de foto para o portfólio. Retorna URL pública ou null se cancelado. */
+export async function pickAndUploadPortfolioPhoto(): Promise<string | null> {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== 'granted') throw new Error('Permissão de galeria negada.');
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    allowsEditing: true,
+    quality: 0.85,
+  });
+  if (result.canceled || !result.assets[0]) return null;
+
+  const asset = result.assets[0];
+  const mimeType = asset.mimeType ?? 'image/jpeg';
+
+  if (!isSupabaseConfigured) {
+    return `https://loremflickr.com/400/300/food,gourmet?lock=${Math.floor(Math.random() * 99)}`;
+  }
+
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new Error('Sessão expirada.');
+
+  const ext = mimeType === 'image/png' ? 'png' : 'jpg';
+  const path = `${auth.user.id}/portfolio/${Date.now()}.${ext}`;
+  return uploadToAvatarsBucket(asset.uri, path, mimeType);
+}
+
 /** Abre a galeria, faz upload e devolve a URL pública. Retorna null se cancelado. */
 export async function pickAndUploadAvatar(): Promise<string | null> {
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -41,18 +82,5 @@ export async function pickAndUploadAvatar(): Promise<string | null> {
 
   const ext = mimeType === 'image/png' ? 'png' : 'jpg';
   const path = `${auth.user.id}/avatar.${ext}`;
-
-  // Lê o arquivo local como ArrayBuffer — mais confiável que fetch().blob() no RN
-  const file = new File(asset.uri);
-  const arrayBuffer = await file.arrayBuffer();
-
-  const { error } = await supabase.storage
-    .from('avatars')
-    .upload(path, arrayBuffer, { contentType: mimeType, upsert: true });
-
-  if (error) throw error;
-
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  // Cache buster para forçar reload da imagem após substituição
-  return `${data.publicUrl}?t=${Date.now()}`;
+  return uploadToAvatarsBucket(asset.uri, path, mimeType);
 }

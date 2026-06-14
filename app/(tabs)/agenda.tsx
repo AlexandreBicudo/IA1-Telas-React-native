@@ -1,5 +1,6 @@
 import { FontAwesome } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter, type Href } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -31,6 +32,7 @@ type Tab = 'client' | 'chef';
 
 export default function AgendaScreen() {
   const c = useColors();
+  const router = useRouter();
   const styles = useMemo(() => makeStyles(c), [c]);
   const STATUS = useMemo(() => statusUi(c), [c]);
 
@@ -96,7 +98,12 @@ export default function AgendaScreen() {
           </View>
         ) : (
           list.map((b) => (
-            <Panel key={b.id} style={styles.card}>
+            <TouchableOpacity
+              key={b.id}
+              activeOpacity={0.85}
+              onPress={() => router.push({ pathname: '/agendamento/[id]', params: { id: b.id, role: tab === 'client' ? 'client' : 'chef' } } as any as Href)}
+            >
+            <Panel style={styles.card}>
               <View style={styles.cardTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.counterpartLabel}>{tab === 'client' ? 'Chef' : 'Cliente'}</Text>
@@ -131,6 +138,7 @@ export default function AgendaScreen() {
                 </View>
               </View>
             </Panel>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>

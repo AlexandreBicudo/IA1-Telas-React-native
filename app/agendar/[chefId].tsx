@@ -17,7 +17,7 @@ import { Calendar } from 'react-native-calendars';
 import { useColors } from '@/components/theme-context';
 import { AccentButton, Panel, ScreenGradient } from '@/components/ui-gourmet';
 import { GSpacing, brandFont, type Palette } from '@/constants/gourmet-theme';
-import { getChefAvailableDates } from '@/services/availabilityService';
+import { getChefAvailableDates, getChefBookedDates } from '@/services/availabilityService';
 import { createBooking } from '@/services/bookingService';
 import type { ServiceType } from '@/types/database';
 
@@ -34,6 +34,7 @@ export default function AgendarScreen() {
   const dailyRate = parseFloat(params.dailyRate ?? '0');
 
   const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [loadingDates, setLoadingDates] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [serviceType, setServiceType] = useState<ServiceType>('diaria');
@@ -43,9 +44,10 @@ export default function AgendarScreen() {
 
   useEffect(() => {
     let active = true;
-    getChefAvailableDates(chefId).then((dates) => {
+    Promise.all([getChefAvailableDates(chefId), getChefBookedDates(chefId)]).then(([avail, booked]) => {
       if (active) {
-        setAvailableDates(dates);
+        setAvailableDates(avail);
+        setBookedDates(booked);
         setLoadingDates(false);
       }
     });
@@ -57,6 +59,9 @@ export default function AgendarScreen() {
     for (const d of availableDates) {
       marks[d] = { marked: true, dotColor: c.primary };
     }
+    for (const d of bookedDates) {
+      marks[d] = { marked: true, dotColor: c.danger, disabled: true, disableTouchEvent: true };
+    }
     if (selectedDate) {
       marks[selectedDate] = {
         ...(marks[selectedDate] ?? {}),
@@ -66,13 +71,16 @@ export default function AgendarScreen() {
       };
     }
     return marks;
-  }, [availableDates, selectedDate, c.primary]);
+  }, [availableDates, bookedDates, selectedDate, c.primary, c.danger]);
 
   const handleDayPress = (day: { dateString: string }) => {
-    const isMock = availableDates.length > 0 && !availableDates.includes(day.dateString);
     if (day.dateString < TODAY) return;
-    if (availableDates.length > 0 && isMock) {
-      Alert.alert('Data indisponível', 'O chef não está disponível nesta data. Escolha um dia marcado.');
+    if (bookedDates.includes(day.dateString)) {
+      Alert.alert('Data reservada', 'Este dia já tem um agendamento confirmado. Escolha outra data.');
+      return;
+    }
+    if (availableDates.length > 0 && !availableDates.includes(day.dateString)) {
+      Alert.alert('Data indisponível', 'O chef não marcou este dia como disponível. Escolha um dia com ponto verde.');
       return;
     }
     setSelectedDate(day.dateString);
@@ -161,6 +169,10 @@ export default function AgendarScreen() {
                 Nenhuma data cadastrada pelo chef — qualquer data futura será aceita.
               </Text>
             )}
+            <View style={styles.legend}>
+              <View style={styles.legendItem}><View style={[styles.dot, { backgroundColor: c.primary }]} /><Text style={styles.legendText}>Disponível</Text></View>
+              <View style={styles.legendItem}><View style={[styles.dot, { backgroundColor: c.danger }]} /><Text style={styles.legendText}>Reservado</Text></View>
+            </View>
             <Panel style={styles.calendarPanel}>
               <Calendar
                 minDate={TODAY}
@@ -276,6 +288,10 @@ const makeStyles = (c: Palette) =>
     },
     calendarLoader: { height: 300, justifyContent: 'center', alignItems: 'center' },
     hint: { fontSize: 13, color: c.muted, marginBottom: 12, lineHeight: 18 },
+    legend: { flexDirection: 'row', gap: 18, marginBottom: 10 },
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    dot: { width: 8, height: 8, borderRadius: 4 },
+    legendText: { fontSize: 12, color: c.muted },
     calendarPanel: { overflow: 'hidden', padding: 0 },
     selectedBadge: {
       flexDirection: 'row',

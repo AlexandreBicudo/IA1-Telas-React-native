@@ -131,6 +131,39 @@ export async function updateChefProfile(chefId: string, edit: ChefProfileEdit): 
   }
 }
 
+/** Valida se o perfil profissional está completo para ativar no catálogo. */
+export function validateChefProfileForActivation(data: {
+  headline: string;
+  bio: string;
+  dailyRate: number;
+  yearsExperience: number;
+  specialties: string[];
+  avatarUrl: string | null;
+}): string[] {
+  const missing: string[] = [];
+  if (!data.headline.trim()) missing.push('Título profissional');
+  if (!data.bio.trim()) missing.push('Bio (sobre você)');
+  if (!data.dailyRate || data.dailyRate <= 0) missing.push('Valor da diária');
+  if (!data.yearsExperience || data.yearsExperience <= 0) missing.push('Anos de experiência');
+  if (data.specialties.length === 0) missing.push('Ao menos uma especialidade');
+  if (!data.avatarUrl) missing.push('Foto de perfil');
+  return missing;
+}
+
+/** Adiciona um item ao portfólio do chef. */
+export async function addPortfolioItem(chefId: string, imageUrl: string, title: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await supabase.from('portfolio_items').insert({ chef_id: chefId, image_url: imageUrl, title });
+  if (error) throw error;
+}
+
+/** Remove um item do portfólio. */
+export async function removePortfolioItem(id: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { error } = await supabase.from('portfolio_items').delete().eq('id', id);
+  if (error) throw error;
+}
+
 /** Salva a URL do avatar no perfil do usuário logado. */
 export async function updateAvatarUrl(url: string): Promise<void> {
   if (!isSupabaseConfigured) return;

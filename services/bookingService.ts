@@ -20,6 +20,12 @@ export interface BookingListItem {
   status: BookingStatus;
 }
 
+export interface BookingDetail extends BookingListItem {
+  clientId: string;
+  chefProfileId: string; // chef_profiles.profile_id (auth uid do chef)
+  notes?: string;
+}
+
 export interface MyBookings {
   asClient: BookingListItem[]; // que eu contratei
   asChef: BookingListItem[]; // que recebi como profissional
@@ -86,6 +92,20 @@ export async function createBooking(params: {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Faça login para agendar.');
 
+  // Bloqueia double-booking: verifica se já existe agendamento ativo nessa data
+  const dayStart = `${params.eventDate}T00:00:00`;
+  const dayEnd = `${params.eventDate}T23:59:59`;
+  const { count } = await supabase
+    .from('bookings')
+    .select('id', { count: 'exact', head: true })
+    .eq('chef_id', params.chefId)
+    .gte('event_date', dayStart)
+    .lte('event_date', dayEnd)
+    .in('status', ['solicitado', 'confirmado', 'em_andamento']);
+  if ((count ?? 0) > 0) {
+    throw new Error('O chef já tem um agendamento nesta data. Escolha outro dia.');
+  }
+
   const { error } = await supabase.from('bookings').insert({
     client_id: auth.user.id,
     chef_id: params.chefId,
@@ -97,7 +117,57 @@ export async function createBooking(params: {
     status: 'solicitado',
   });
   if (error) throw error;
+
+  // Marca o slot de disponibilidade como reservado (se existir)
+  await supabase
+    .from('chef_availability')
+    .update({ is_booked: true })
+    .eq('chef_id', params.chefId)
+    .eq('date', params.eventDate);
+
   return { mock: false };
+}
+
+/** Carrega um agendamento pelo ID com detalhes completos. */
+export async function getBookingById(id: string): Promise<BookingDetail | null> {
+  if (!isSupabaseConfigured) {
+    const all = [...MOCK.asClient, ...MOCK.asChef];
+    const found = all.find((b) => b.id === id);
+    if (!found) return null;
+    return { ...found, clientId: 'mock-user', chefProfileId: 'mock-chef-profile' };
+  }
+
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return null;
+
+  const { data } = await supabase
+    .from('bookings')
+    .select(`
+      id, client_id, chef_id, service_type, event_date,
+      guests_count, address, notes, total_price, status,
+      chef_profiles ( profile_id, profiles ( full_name ) ),
+      client:profiles!bookings_client_id_fkey ( full_name )
+    `)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    clientId: data.client_id,
+    chefId: data.chef_id,
+    chefProfileId: (data.chef_profiles as any)?.profile_id ?? '',
+    chefName: (data.chef_profiles as any)?.profiles?.full_name ?? 'Chef',
+    clientName: (data.client as any)?.full_name ?? 'Cliente',
+    serviceType: data.service_type,
+    eventDate: data.event_date,
+    guestsCount: data.guests_count,
+    address: data.address,
+    notes: data.notes ?? undefined,
+    totalPrice: Number(data.total_price),
+    status: data.status,
+  };
 }
 
 /** Atualiza o status de um agendamento (aceitar/recusar/cancelar). */
