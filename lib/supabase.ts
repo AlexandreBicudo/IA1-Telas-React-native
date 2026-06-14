@@ -1,29 +1,29 @@
 /**
  * Cliente Supabase — ponto único de comunicação do app com o backend.
  *
- * ⚠️ INTEGRAÇÃO PENDENTE (Fase 3). Hoje a camada `services/` usa mocks, então
- * este arquivo ainda não é importado por nenhuma tela. Para ativá-lo:
+ * Lê as credenciais de variáveis EXPO_PUBLIC_* (ver .env / .env.example).
+ * Se elas não estiverem definidas, `isSupabaseConfigured` fica falso e a
+ * camada services/ usa os mocks automaticamente (modo de apresentação offline).
  *
- *   1. npm install @supabase/supabase-js
- *   2. Defina as variáveis em app.json > expo.extra (ou .env via app.config.ts):
- *        EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY
- *   3. Rode o schema em supabase/schema.sql no SQL Editor do projeto Supabase.
- *   4. Troque as implementações mock em services/ pelas chamadas reais
- *      (já documentadas em comentário ao lado de cada função).
- *
- * O anon key é público por design (protegido por Row Level Security no banco).
+ * A sessão é persistida no dispositivo via AsyncStorage, então o usuário
+ * continua logado entre aberturas do app.
  */
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
+/** True quando há URL + chave configuradas; caso contrário, o app roda em modo mock. */
+export const isSupabaseConfigured =
+  supabaseUrl.length > 0 && supabaseAnonKey.length > 0;
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    // Em React Native, persistir a sessão exige um storage assíncrono
-    // (ex.: @react-native-async-storage/async-storage). Configurar na Fase 3.
+    storage: AsyncStorage,
     persistSession: true,
     autoRefreshToken: true,
+    // Em React Native não há URL de redirecionamento para detectar sessão.
     detectSessionInUrl: false,
   },
 });

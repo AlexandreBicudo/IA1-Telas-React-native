@@ -15,14 +15,18 @@ import {
     View,
 } from 'react-native';
 
+import { GShadow } from '@/constants/gourmet-theme';
+import { AccentBar, GoldButton, ScreenGradient } from '@/components/ui-gourmet';
+import { authErrorMessage, signIn } from '@/services/authService';
+
 const COLORS = {
-  dark: '#0A0A0A',
-  card: '#1A1A1A',
-  border: '#282828',
-  primary: '#C8A05F',
-  cream: '#F8F8F0',
-  muted: '#787878',
-  hint: '#444444',
+  dark: '#0F0F12',
+  card: '#1B1B20',
+  border: '#2A2A30',
+  primary: '#C9A24A',
+  cream: '#F5F0EB',
+  muted: '#A1A1AA',
+  hint: '#6B6B72',
   white: '#FFFFFF',
 };
 
@@ -31,13 +35,21 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !senha) {
       return Alert.alert('Atenção', 'Preencha todos os campos.');
     }
-    // Fase 3: substituir por supabase.auth.signInWithPassword(...).
-    router.replace('/catalogo');
+    try {
+      setLoading(true);
+      await signIn({ email: email.trim(), password: senha });
+      router.replace('/catalogo');
+    } catch (error) {
+      Alert.alert('Erro ao entrar', authErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -46,15 +58,16 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <StatusBar barStyle="light-content" backgroundColor={COLORS.dark} />
+      <ScreenGradient>
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.topAccent} />
+        <AccentBar style={styles.topAccent} />
 
         <View style={styles.logoContainer}>
           <Image
-            source={require('../assets/images/chef_logo_new.png')}
+            source={require('../assets/images/chef_logo_mark.png')}
             style={styles.logoImage}
             resizeMode="contain"
           />
@@ -103,13 +116,12 @@ export default function LoginScreen() {
           <Text style={styles.forgotText}>Esqueceu a senha?</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.botao}
+        <GoldButton
+          label="ENTRAR"
           onPress={handleLogin}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.textoBotao}>ENTRAR</Text>
-        </TouchableOpacity>
+          loading={loading}
+          style={styles.botao}
+        />
 
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
@@ -136,6 +148,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </ScreenGradient>
     </KeyboardAvoidingView>
   );
 }
@@ -199,6 +212,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 18,
     height: 54,
+    ...GShadow,
   },
   inputIcon: {
     fontSize: 16,
@@ -233,6 +247,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
+  },
+  botaoDisabled: {
+    opacity: 0.6,
   },
   textoBotao: {
     color: COLORS.dark,

@@ -12,13 +12,13 @@ import {
 } from 'react-native';
 
 const COLORS = {
-  dark: '#0A0A0A',
-  card: '#1A1A1A',
-  border: '#282828',
-  primary: '#C8A05F',
-  cream: '#F8F8F0',
-  muted: '#787878',
-  hint: '#444444',
+  dark: '#0F0F12',
+  card: '#1B1B20',
+  border: '#2A2A30',
+  primary: '#C9A24A',
+  cream: '#F5F0EB',
+  muted: '#A1A1AA',
+  hint: '#6B6B72',
 };
 
 export default function NovaSenhaScreen() {
