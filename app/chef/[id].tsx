@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   StatusBar,
@@ -16,7 +15,6 @@ import {
 import { GSpacing, brandFont, type Palette } from '@/constants/gourmet-theme';
 import { AccentButton, ScreenGradient } from '@/components/ui-gourmet';
 import { useColors } from '@/components/theme-context';
-import { createBooking } from '@/services/bookingService';
 import { getChefById } from '@/services/chefService';
 import type { ChefListing, VerificationStatus } from '@/types/database';
 
@@ -29,7 +27,6 @@ export default function ChefDetailScreen() {
 
   const [chef, setChef] = useState<ChefListing | null>(null);
   const [loading, setLoading] = useState(true);
-  const [booking, setBooking] = useState(false);
 
   const verification = (s: VerificationStatus) =>
     ({
@@ -52,21 +49,12 @@ export default function ChefDetailScreen() {
     };
   }, [chefId]);
 
-  const handleAgendar = async () => {
+  const handleAgendar = () => {
     if (!chef) return;
-    try {
-      setBooking(true);
-      const r = await createBooking({ chefId: chef.id, dailyRate: chef.dailyRate });
-      Alert.alert(
-        'Solicitação enviada!',
-        r.mock ? 'Em modo demonstração, veja o pedido na aba Agenda.' : 'O chef receberá seu pedido. Acompanhe em Agenda.',
-        [{ text: 'Ver agenda', onPress: () => router.push('/agenda' as Href) }, { text: 'OK' }],
-      );
-    } catch (e) {
-      Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível agendar.');
-    } finally {
-      setBooking(false);
-    }
+    router.push({
+      pathname: '/agendar/[chefId]',
+      params: { chefId: chef.id, chefName: chef.name, dailyRate: String(chef.dailyRate) },
+    } as any);
   };
 
   if (loading) {
@@ -183,7 +171,7 @@ export default function ChefDetailScreen() {
             <Text style={styles.muted}>Nenhum item no portfólio ainda.</Text>
           )}
 
-          <AccentButton label="AGENDAR SERVIÇO" icon="calendar-check-o" onPress={handleAgendar} loading={booking} style={styles.cta} />
+          <AccentButton label="AGENDAR SERVIÇO" icon="calendar-check-o" onPress={handleAgendar} style={styles.cta} />
         </View>
       </ScrollView>
     </ScreenGradient>

@@ -74,6 +74,10 @@ const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 export async function createBooking(params: {
   chefId: string;
   dailyRate: number;
+  eventDate: string; // 'YYYY-MM-DD'
+  guestsCount: number;
+  address: string;
+  serviceType: ServiceType;
 }): Promise<{ mock: boolean }> {
   if (!isSupabaseConfigured) {
     await delay();
@@ -82,14 +86,13 @@ export async function createBooking(params: {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Faça login para agendar.');
 
-  const eventDate = new Date(Date.now() + 7 * 86400000).toISOString();
   const { error } = await supabase.from('bookings').insert({
     client_id: auth.user.id,
     chef_id: params.chefId,
-    service_type: 'diaria',
-    event_date: eventDate,
-    guests_count: 2,
-    address: 'A combinar no chat',
+    service_type: params.serviceType,
+    event_date: new Date(params.eventDate).toISOString(),
+    guests_count: params.guestsCount,
+    address: params.address,
     total_price: params.dailyRate,
     status: 'solicitado',
   });
