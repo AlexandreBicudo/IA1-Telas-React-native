@@ -18,13 +18,13 @@ import { authErrorMessage, signUp } from '@/services/authService';
 import type { UserRole } from '@/types/database';
 
 const COLORS = {
-  dark: '#0A0A0A',
-  card: '#1A1A1A',
-  border: '#282828',
-  primary: '#C8A05F',
-  cream: '#F8F8F0',
-  muted: '#787878',
-  hint: '#444444',
+  dark: '#0F0F12',
+  card: '#1B1B20',
+  border: '#2A2A30',
+  primary: '#C9A24A',
+  cream: '#F5F0EB',
+  muted: '#A1A1AA',
+  hint: '#6B6B72',
 };
 
 export default function CadastroScreen() {
@@ -72,7 +72,7 @@ export default function CadastroScreen() {
     >
       <ScrollView contentContainerStyle={styles.scroll}>
         <Image
-          source={require('../assets/images/chef_logo_new.png')}
+          source={require('../assets/images/chef_logo_mark.png')}
           style={styles.logoImage}
           resizeMode="contain"
         />

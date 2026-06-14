@@ -4,6 +4,8 @@
  * Em modo mock (sem credenciais no .env), as funções simulam sucesso para que
  * o fluxo de telas continue navegável durante a apresentação offline.
  */
+import * as Linking from 'expo-linking';
+
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import type { UserRole } from '@/types/database';
 
@@ -29,7 +31,11 @@ export async function signUp({ email, password, fullName, role }: SignUpParams) 
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName, role } },
+    options: {
+      data: { full_name: fullName, role },
+      // Link de confirmação abre o app na tela /confirmado (deep link).
+      emailRedirectTo: Linking.createURL('/confirmado'),
+    },
   });
   if (error) throw error;
 
