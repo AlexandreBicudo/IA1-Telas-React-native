@@ -1,12 +1,13 @@
 import { FontAwesome } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
+  LayoutChangeEvent,
   Platform,
   ScrollView,
   StatusBar,
@@ -43,9 +44,12 @@ import type { PortfolioItem } from '@/types/database';
 
 export default function EditarPerfilScreen() {
   const router = useRouter();
+  const { section } = useLocalSearchParams<{ section?: string }>();
   const c = useColors();
   const { mode } = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
+  const scrollRef = useRef<ScrollView>(null);
+  const proSectionY = useRef<number>(0);
 
   // ─── Conta pessoal ────────────────────────────────────────────────────────
   const [fullName, setFullName] = useState('');
@@ -90,6 +94,12 @@ export default function EditarPerfilScreen() {
   const [uploadingPersonal, setUploadingPersonal] = useState(false);
   const [uploadingPro, setUploadingPro] = useState(false);
   const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
+
+  useEffect(() => {
+    if (!loading && section === 'profissional' && proSectionY.current > 0) {
+      setTimeout(() => scrollRef.current?.scrollTo({ y: proSectionY.current - 16, animated: true }), 150);
+    }
+  }, [loading, section]);
 
   useEffect(() => {
     let active = true;
@@ -352,7 +362,7 @@ export default function EditarPerfilScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
         {/* ══════════════════════════════════════════
             SEÇÃO 1 — MINHA CONTA
@@ -466,7 +476,10 @@ export default function EditarPerfilScreen() {
             foto profissional diferente da pessoal.
         ══════════════════════════════════════════ */}
         {chefId && (
-          <View style={[styles.sectionCard, { borderColor: c.success + '50', marginTop: 20 }]}>
+          <View
+            style={[styles.sectionCard, { borderColor: c.success + '50', marginTop: 20 }]}
+            onLayout={(e: LayoutChangeEvent) => { proSectionY.current = e.nativeEvent.layout.y; }}
+          >
             <View style={styles.sectionCardHeader}>
               <View style={[styles.sectionCardIcon, { backgroundColor: c.success + '20' }]}>
                 <FontAwesome name="cutlery" size={15} color={c.success} />

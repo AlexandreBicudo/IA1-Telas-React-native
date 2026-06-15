@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -94,6 +95,32 @@ function formatDate(iso: string) {
 }
 
 type Tab = 'client' | 'chef';
+type DateFilter = 'all' | 'today' | 'week' | 'month';
+
+const DATE_FILTERS: { key: DateFilter; label: string }[] = [
+  { key: 'all',   label: 'Todos'       },
+  { key: 'today', label: 'Hoje'        },
+  { key: 'week',  label: 'Esta semana' },
+  { key: 'month', label: 'Este mês'    },
+];
+
+function applyDateFilter(items: BookingListItem[], filter: DateFilter): BookingListItem[] {
+  if (filter === 'all') return items;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return items.filter((b) => {
+    const d = new Date(b.eventDate);
+    if (filter === 'today')
+      return d >= today && d < new Date(today.getTime() + 86_400_000);
+    if (filter === 'week')
+      return d >= today && d < new Date(today.getTime() + 7 * 86_400_000);
+    if (filter === 'month') {
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      return d >= today && d < nextMonth;
+    }
+    return true;
+  });
+}
 
 // ─── Tela principal ───────────────────────────────────────────────────────────
 
@@ -106,6 +133,8 @@ export default function AgendaScreen() {
   const [tab, setTab] = useState<Tab>('client');
   const [data, setData] = useState<MyBookings>({ asClient: [], asChef: [] });
   const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -137,7 +166,19 @@ export default function AgendaScreen() {
     ]);
   };
 
-  const list = tab === 'client' ? data.asClient : data.asChef;
+  const rawList = tab === 'client' ? data.asClient : data.asChef;
+  const list = useMemo(() => {
+    let result = applyDateFilter(rawList, dateFilter);
+    const q = searchText.trim().toLowerCase();
+    if (q) {
+      result = result.filter((b) =>
+        b.chefName.toLowerCase().includes(q) ||
+        b.clientName.toLowerCase().includes(q) ||
+        b.address.toLowerCase().includes(q),
+      );
+    }
+    return result;
+  }, [rawList, searchText, dateFilter]);
   const grouped = useMemo(() => sortAndGroup(list), [list]);
 
   // Count de itens pendentes para os badges das abas
@@ -179,21 +220,57 @@ export default function AgendaScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* ─── Busca e filtros ─── */}
+        <View style={styles.searchRow}>
+          <FontAwesome name="search" size={14} color={c.hint} style={{ marginLeft: 12 }} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar por nome ou endereço..."
+            placeholderTextColor={c.hint}
+            value={searchText}
+            onChangeText={setSearchText}
+          />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')} hitSlop={10} style={{ marginRight: 12 }}>
+              <FontAwesome name="times-circle" size={16} color={c.hint} />
+            </TouchableOpacity>
+          )}
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}
+          contentContainerStyle={styles.filterContent}>
+          {DATE_FILTERS.map((f) => (
+            <TouchableOpacity
+              key={f.key}
+              style={[styles.filterChip, dateFilter === f.key && styles.filterChipActive]}
+              onPress={() => setDateFilter(f.key)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.filterChipText, dateFilter === f.key && styles.filterChipTextActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
         {/* ─── Conteúdo ─── */}
         {loading ? (
           [1, 2, 3].map((n) => <SkeletonBookingCard key={n} />)
         ) : list.length === 0 ? (
           <View style={styles.emptyWrap}>
             <View style={styles.emptyIcon}>
-              <FontAwesome name="calendar-o" size={28} color={c.hint} />
+              <FontAwesome name={searchText || dateFilter !== 'all' ? 'filter' : 'calendar-o'} size={28} color={c.hint} />
             </View>
             <Text style={styles.emptyTitle}>
-              {tab === 'client' ? 'Nenhum serviço contratado' : 'Nenhum pedido recebido'}
+              {searchText || dateFilter !== 'all'
+                ? 'Nenhum resultado para os filtros'
+                : tab === 'client' ? 'Nenhum serviço contratado' : 'Nenhum pedido recebido'}
             </Text>
             <Text style={styles.emptySub}>
-              {tab === 'client'
-                ? 'Encontre um chef no catálogo e faça seu primeiro agendamento.'
-                : 'Quando clientes solicitarem seu serviço, eles aparecerão aqui.'}
+              {searchText || dateFilter !== 'all'
+                ? 'Tente outro período ou limpe a busca.'
+                : tab === 'client'
+                  ? 'Encontre um chef no catálogo e faça seu primeiro agendamento.'
+                  : 'Quando clientes solicitarem seu serviço, eles aparecerão aqui.'}
             </Text>
           </View>
         ) : (
@@ -369,6 +446,23 @@ const makeStyles = (c: Palette) =>
     badgeActive: { backgroundColor: 'rgba(255,255,255,0.25)' },
     badgeInactive: { backgroundColor: c.warning + '28' },
     badgeText: { fontSize: 11, fontWeight: '700', color: c.warning },
+
+    // Busca e filtros
+    searchRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      borderRadius: 12, marginBottom: 10, height: 44,
+    },
+    searchInput: { flex: 1, fontSize: 14, color: c.cream, paddingVertical: 10 },
+    filterScroll: { marginBottom: 16 },
+    filterContent: { gap: 8, paddingRight: 4 },
+    filterChip: {
+      borderWidth: 1, borderColor: c.border, borderRadius: 20,
+      paddingHorizontal: 14, paddingVertical: 7, backgroundColor: c.card,
+    },
+    filterChipActive: { backgroundColor: c.primary, borderColor: c.primary },
+    filterChipText: { fontSize: 13, color: c.muted, fontWeight: '600' },
+    filterChipTextActive: { color: c.onPrimary },
 
     // Empty state
     emptyWrap: { alignItems: 'center', marginTop: 48, gap: 14, paddingHorizontal: 12 },

@@ -103,7 +103,7 @@ export default function PerfilScreen() {
           icon="user-circle-o"
           title="Editar dados pessoais"
           sub="Nome, e-mail e senha da sua conta."
-          onPress={() => router.push('/editar-perfil')}
+          onPress={() => router.push({ pathname: '/editar-perfil', params: { section: 'conta' } } as any)}
         />
 
         <Text style={styles.sectionTitle}>Contratar serviços</Text>
@@ -129,7 +129,7 @@ export default function PerfilScreen() {
               icon="pencil"
               title="Gerenciar meu serviço"
               sub="Especialidades, valor, portfólio e disponibilidade."
-              onPress={() => router.push('/editar-perfil')}
+              onPress={() => router.push({ pathname: '/editar-perfil', params: { section: 'profissional' } } as any)}
             />
             {account.chefId && (
               <ActionCard
