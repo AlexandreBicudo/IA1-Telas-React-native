@@ -29,10 +29,12 @@ import {
   addPortfolioItem,
   getMyAccount,
   removePortfolioItem,
+  saveExperiences,
   updateAvatarUrl,
   updateChefProfile,
   updateMyProfile,
   validateChefProfileForActivation,
+  type ExperienceEdit,
   type PricingTier,
 } from '@/services/profileService';
 import {
@@ -78,6 +80,7 @@ export default function EditarPerfilScreen() {
   const [isAvailable, setIsAvailable] = useState(false);
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [experiences, setExperiences] = useState<ExperienceEdit[]>([]);
   const [city, setCity] = useState('');
   const [stateSigla, setStateSigla] = useState('');
   const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
@@ -124,6 +127,15 @@ export default function EditarPerfilScreen() {
         setSpecialties(chef.specialties);
         setPortfolio(chef.portfolio ?? []);
         setPricingTiers(chef.pricingTiers ?? []);
+        setExperiences(
+          (chef.experiences ?? []).map((e) => ({
+            id: e.id,
+            restaurant_name: e.restaurant_name,
+            role: e.role,
+            start_date: e.start_date ? e.start_date.substring(0, 4) : '',
+            end_date: e.end_date ? e.end_date.substring(0, 4) : null,
+          })),
+        );
       }
       setLoading(false);
     });
@@ -295,6 +307,7 @@ export default function EditarPerfilScreen() {
           professionalAvatarUrl: professionalAvatarUrl ?? undefined,
         }),
         updateMyProfile({ fullName: fullName.trim(), city: city.trim(), state: stateSigla.trim() }),
+        saveExperiences(chefId, experiences),
       ]);
       Alert.alert('Pronto!', 'Perfil profissional atualizado.', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (e) {
@@ -636,6 +649,109 @@ export default function EditarPerfilScreen() {
               <Text style={styles.addTierText}>Adicionar faixa de preço</Text>
             </TouchableOpacity>
 
+            {/* Experiência em restaurantes */}
+            <Text style={[styles.label, { marginTop: 20 }]}>EXPERIÊNCIA EM RESTAURANTES</Text>
+            <Text style={styles.subLabel}>
+              Histórico profissional que aumenta sua credibilidade no catálogo.
+            </Text>
+
+            {experiences.map((exp, idx) => (
+              <View key={idx} style={styles.expCard}>
+                <View style={styles.expCardHeader}>
+                  <FontAwesome name="building-o" size={14} color={c.primary} />
+                  <Text style={styles.expCardTitle} numberOfLines={1}>
+                    {exp.restaurant_name || 'Novo restaurante'}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setExperiences((prev) => prev.filter((_, i) => i !== idx))}
+                    hitSlop={10}
+                  >
+                    <FontAwesome name="trash-o" size={15} color={c.danger} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Nome do restaurante / empresa"
+                    placeholderTextColor={c.hint}
+                    value={exp.restaurant_name}
+                    onChangeText={(v) =>
+                      setExperiences((prev) =>
+                        prev.map((e, i) => (i === idx ? { ...e, restaurant_name: v } : e))
+                      )
+                    }
+                  />
+                </View>
+
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Cargo / função (ex.: Subchef)"
+                    placeholderTextColor={c.hint}
+                    value={exp.role}
+                    onChangeText={(v) =>
+                      setExperiences((prev) =>
+                        prev.map((e, i) => (i === idx ? { ...e, role: v } : e))
+                      )
+                    }
+                  />
+                </View>
+
+                <View style={styles.row}>
+                  <View style={styles.rowItem}>
+                    <Text style={styles.label}>DE (ano)</Text>
+                    <View style={styles.inputWrapper}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="2018"
+                        placeholderTextColor={c.hint}
+                        value={exp.start_date ?? ''}
+                        keyboardType="numeric"
+                        maxLength={4}
+                        onChangeText={(v) =>
+                          setExperiences((prev) =>
+                            prev.map((e, i) => (i === idx ? { ...e, start_date: v } : e))
+                          )
+                        }
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.rowItem}>
+                    <Text style={styles.label}>ATÉ (vazio = atual)</Text>
+                    <View style={styles.inputWrapper}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="atual"
+                        placeholderTextColor={c.hint}
+                        value={exp.end_date ?? ''}
+                        keyboardType="numeric"
+                        maxLength={4}
+                        onChangeText={(v) =>
+                          setExperiences((prev) =>
+                            prev.map((e, i) => (i === idx ? { ...e, end_date: v || null } : e))
+                          )
+                        }
+                      />
+                    </View>
+                  </View>
+                </View>
+              </View>
+            ))}
+
+            <TouchableOpacity
+              style={styles.addTierBtn}
+              onPress={() =>
+                setExperiences((prev) => [
+                  ...prev,
+                  { restaurant_name: '', role: '', start_date: '', end_date: null },
+                ])
+              }
+            >
+              <FontAwesome name="plus" size={13} color={c.primary} />
+              <Text style={styles.addTierText}>Adicionar experiência</Text>
+            </TouchableOpacity>
+
             <GoldButton label="SALVAR PERFIL PROFISSIONAL" onPress={handleSaveProfessional} loading={saving} style={{ marginTop: 24 }} />
           </View>
         )}
@@ -779,6 +895,16 @@ const makeStyles = (c: Palette) =>
       borderRadius: 10, paddingVertical: 11, justifyContent: 'center', marginTop: 4,
     },
     addTierText: { fontSize: 13, color: c.primary, fontWeight: '600' },
+
+    // Experiência em restaurantes
+    expCard: {
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      borderRadius: GSpacing.radius, padding: 14, marginBottom: 10, gap: 2,
+    },
+    expCardHeader: {
+      flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4,
+    },
+    expCardTitle: { flex: 1, fontSize: 13, fontWeight: '600', color: c.cream },
 
     // Modal
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: GSpacing.screen },
