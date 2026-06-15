@@ -290,7 +290,20 @@ export default function CarteiraScreen() {
                           </Text>
                         </View>
                       </View>
-                      <Text style={styles.upcomingAmount}>+R$ {job.totalPrice.toFixed(0)}</Text>
+                      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                        <Text style={styles.upcomingAmount}>+R$ {job.totalPrice.toFixed(0)}</Text>
+                        {(job as any).paymentStatus === 'pendente' && (
+                          <View style={[styles.payPendingBadge, { backgroundColor: c.warning + '20' }]}>
+                            <Text style={[styles.payPendingText, { color: c.warning }]}>Pag. pendente</Text>
+                          </View>
+                        )}
+                        {(job as any).paymentStatus === 'pago' && (
+                          <View style={[styles.payPendingBadge, { backgroundColor: c.success + '20' }]}>
+                            <FontAwesome name="check" size={9} color={c.success} />
+                            <Text style={[styles.payPendingText, { color: c.success }]}>Pago</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
                   );
                 })
@@ -448,6 +461,8 @@ const makeStyles = (c: Palette) =>
     upcomingStatus: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, marginTop: 4 },
     upcomingStatusText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
     upcomingAmount: { fontSize: 16, fontWeight: '700', color: c.success, fontFamily: brandFont },
+    payPendingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
+    payPendingText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.3 },
 
     // Empty
     emptyWrap: { alignItems: 'center', marginTop: 60, gap: 14, paddingHorizontal: 12 },

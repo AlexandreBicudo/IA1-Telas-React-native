@@ -329,6 +329,9 @@ export default function AgendamentoDetailScreen() {
               {role === 'chef' && booking.status === 'confirmado' && (
                 <ActionBtn label="Concluir serviço" color={c.primary} onPress={() => handleAction('concluido')} styles={styles} />
               )}
+              {role === 'client' && booking.status === 'confirmado' && (booking as any).paymentStatus !== 'pago' && (
+                <ActionBtn label="Pagar agora" color={c.success} onPress={() => router.push(`/pagamento/${bookingId}` as any)} styles={styles} />
+              )}
               {role === 'client' && (booking.status === 'solicitado' || booking.status === 'confirmado') && (
                 <ActionBtn label="Cancelar agendamento" color={c.danger} onPress={() => handleAction('cancelado')} styles={styles} />
               )}
