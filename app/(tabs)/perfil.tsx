@@ -93,6 +93,18 @@ export default function PerfilScreen() {
           <Text style={styles.email}>{account.email}</Text>
         </View>
 
+        <Text style={styles.sectionTitle}>Minha conta</Text>
+        <ActionCard
+          styles={styles}
+          c={c}
+          iconBg={c.surface}
+          iconColor={c.primary}
+          icon="user-circle-o"
+          title="Editar dados pessoais"
+          sub="Nome, e-mail e senha da sua conta."
+          onPress={() => router.push('/editar-perfil')}
+        />
+
         <Text style={styles.sectionTitle}>Contratar serviços</Text>
         <ActionCard
           styles={styles}

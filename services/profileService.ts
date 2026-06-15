@@ -7,7 +7,7 @@
  */
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { MOCK_CURRENT_CHEF_ID } from '@/mocks/chefs';
-import type { UserRole } from '@/types/database';
+import type { PricingTier, UserRole } from '@/types/database';
 
 export interface MyAccount {
   id: string;
@@ -28,7 +28,10 @@ export interface ChefProfileEdit {
   yearsExperience: number;
   isAvailable: boolean;
   specialties: string[];
+  pricingTiers?: PricingTier[];
 }
+
+export type { PricingTier };
 
 /** Dados da conta logada (ou mock em modo offline). */
 export async function getMyAccount(): Promise<MyAccount | null> {
@@ -113,6 +116,7 @@ export async function updateChefProfile(chefId: string, edit: ChefProfileEdit): 
       daily_rate: edit.dailyRate,
       years_experience: edit.yearsExperience,
       is_available: edit.isAvailable,
+      pricing_tiers: edit.pricingTiers ?? null,
     })
     .eq('id', chefId);
   if (error) throw error;

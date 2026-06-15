@@ -1,6 +1,7 @@
 import { FontAwesome } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,7 +19,7 @@ import {
 import { useColors } from '@/components/theme-context';
 import { Panel, ScreenGradient } from '@/components/ui-gourmet';
 import { GSpacing, brandFont, type Palette } from '@/constants/gourmet-theme';
-import { getBookingById, updateBookingStatus, type BookingDetail } from '@/services/bookingService';
+import { daysBetween, getBookingById, updateBookingStatus, type BookingDetail } from '@/services/bookingService';
 import { getOrCreateConversation, getMessages, sendMessage, subscribeToMessages, type ChatMessage } from '@/services/messageService';
 import { createReview, hasReviewed } from '@/services/reviewService';
 import type { BookingStatus } from '@/types/database';
@@ -68,13 +69,18 @@ export default function AgendamentoDetailScreen() {
   const [submittingReview, setSubmittingReview] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  useEffect(() => {
+  // Refresh ao focar a tela — garante que mudanças de status feitas pelo outro
+  // lado (ex: chef marca como concluído) apareçam sem precisar reiniciar o app.
+  const loadData = useCallback(() => {
     let active = true;
+    setLoadingBooking(true);
     Promise.all([getBookingById(bookingId), hasReviewed(bookingId)]).then(([b, alreadyReviewed]) => {
       if (active) { setBooking(b); setReviewed(alreadyReviewed); setLoadingBooking(false); }
     });
     return () => { active = false; };
   }, [bookingId]);
+
+  useFocusEffect(loadData);
 
   useEffect(() => {
     if (!bookingId) return;
@@ -140,6 +146,7 @@ export default function AgendamentoDetailScreen() {
         rating: reviewRating,
         comment: reviewComment,
       });
+      // Atualiza o estado imediatamente sem aguardar o próximo focus
       setReviewed(true);
       setShowReviewModal(false);
       Alert.alert('Avaliação enviada!', 'Obrigado pelo seu feedback.');
@@ -285,7 +292,15 @@ export default function AgendamentoDetailScreen() {
           <Panel style={styles.card}>
             <Text style={styles.sectionLabel}>DETALHES DO SERVIÇO</Text>
             <DetailRow icon="file-text-o" label="CONTRATO CRIADO EM" value={fmtDateTime(booking.contractDate)} c={c} styles={styles} />
-            <DetailRow icon="calendar" label="DATA DO EVENTO" value={fmtDate(booking.eventDate)} c={c} styles={styles} />
+            {booking.eventEndDate && booking.eventEndDate.slice(0, 10) !== booking.eventDate.slice(0, 10) ? (
+              <>
+                <DetailRow icon="calendar" label="DATA DE INÍCIO" value={fmtDate(booking.eventDate)} c={c} styles={styles} />
+                <DetailRow icon="calendar-check-o" label="DATA DE TÉRMINO" value={fmtDate(booking.eventEndDate)} c={c} styles={styles} />
+                <DetailRow icon="clock-o" label="DURAÇÃO" value={`${daysBetween(booking.eventDate.slice(0, 10), booking.eventEndDate.slice(0, 10))} dias`} c={c} styles={styles} />
+              </>
+            ) : (
+              <DetailRow icon="calendar" label="DATA DO EVENTO" value={fmtDate(booking.eventDate)} c={c} styles={styles} />
+            )}
             <DetailRow icon="cutlery" label="TIPO" value={booking.serviceType === 'diaria' ? 'Diária' : 'Evento especial'} c={c} styles={styles} />
             <DetailRow icon="users" label="CONVIDADOS" value={`${booking.guestsCount} pessoa${booking.guestsCount !== 1 ? 's' : ''}`} c={c} styles={styles} />
             <DetailRow icon="map-marker" label="LOCAL" value={booking.address} c={c} styles={styles} />

@@ -6,7 +6,30 @@
  */
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { getChefPushToken, getPushToken, sendPushToToken } from '@/services/notificationService';
-import type { BookingStatus, ServiceType } from '@/types/database';
+import type { BookingStatus, PricingTier, ServiceType } from '@/types/database';
+
+/**
+ * Calcula o preço total considerando tabela de preços dinâmica por faixa de dias.
+ * Se não há tabela de preços, usa dailyRate * numDays.
+ */
+export function calculateEventPrice(
+  pricingTiers: PricingTier[] | null | undefined,
+  dailyRate: number,
+  numDays: number,
+): number {
+  if (!pricingTiers || pricingTiers.length === 0) return dailyRate * numDays;
+  const tier = pricingTiers.find(
+    (t) => numDays >= t.minDays && (t.maxDays === null || numDays <= t.maxDays),
+  );
+  return (tier?.ratePerDay ?? dailyRate) * numDays;
+}
+
+/** Dias entre duas datas ISO (inclusive nas duas pontas). */
+export function daysBetween(start: string, end: string): number {
+  const s = new Date(start);
+  const e = new Date(end);
+  return Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+}
 
 export interface BookingListItem {
   id: string;
@@ -25,6 +48,7 @@ export interface BookingDetail extends BookingListItem {
   clientId: string;
   chefProfileId: string; // chef_profiles.profile_id (auth uid do chef)
   contractDate: string;  // quando o pedido foi criado (created_at)
+  eventEndDate?: string; // data fim para eventos multi-dia
   notes?: string;
 }
 
@@ -82,7 +106,9 @@ const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 export async function createBooking(params: {
   chefId: string;
   dailyRate: number;
-  eventDate: string; // 'YYYY-MM-DD'
+  eventDate: string;      // Data de início 'YYYY-MM-DD'
+  eventEndDate?: string;  // Data de fim 'YYYY-MM-DD' (eventos multi-dia)
+  totalPrice?: number;    // Preço pré-calculado (dinâmico) — se omitido usa dailyRate
   guestsCount: number;
   address: string;
   serviceType: ServiceType;
@@ -94,28 +120,32 @@ export async function createBooking(params: {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Faça login para agendar.');
 
-  // Bloqueia double-booking: verifica se já existe agendamento ativo nessa data
-  const dayStart = `${params.eventDate}T00:00:00`;
-  const dayEnd = `${params.eventDate}T23:59:59`;
+  // Bloqueia double-booking: verifica conflito na faixa de datas
+  const checkStart = `${params.eventDate}T00:00:00`;
+  const checkEnd = `${params.eventEndDate ?? params.eventDate}T23:59:59`;
   const { count } = await supabase
     .from('bookings')
     .select('id', { count: 'exact', head: true })
     .eq('chef_id', params.chefId)
-    .gte('event_date', dayStart)
-    .lte('event_date', dayEnd)
+    .gte('event_date', checkStart)
+    .lte('event_date', checkEnd)
     .in('status', ['solicitado', 'confirmado', 'em_andamento']);
   if ((count ?? 0) > 0) {
-    throw new Error('O chef já tem um agendamento nesta data. Escolha outro dia.');
+    throw new Error('O chef já tem um agendamento nesta data. Escolha outro período.');
   }
+
+  const numDays = params.eventEndDate ? daysBetween(params.eventDate, params.eventEndDate) : 1;
+  const totalPrice = params.totalPrice ?? (params.dailyRate * numDays);
 
   const { error } = await supabase.from('bookings').insert({
     client_id: auth.user.id,
     chef_id: params.chefId,
     service_type: params.serviceType,
     event_date: new Date(params.eventDate).toISOString(),
+    event_end_date: params.eventEndDate ? new Date(params.eventEndDate).toISOString() : null,
     guests_count: params.guestsCount,
     address: params.address,
-    total_price: params.dailyRate,
+    total_price: totalPrice,
     status: 'solicitado',
   });
   if (error) throw error;
@@ -152,7 +182,7 @@ export async function getBookingById(id: string): Promise<BookingDetail | null> 
   const { data } = await supabase
     .from('bookings')
     .select(`
-      id, client_id, chef_id, service_type, event_date, created_at,
+      id, client_id, chef_id, service_type, event_date, event_end_date, created_at,
       guests_count, address, notes, total_price, status,
       chef_profiles ( profile_id, profiles ( full_name ) ),
       client:profiles!bookings_client_id_fkey ( full_name )
@@ -172,6 +202,7 @@ export async function getBookingById(id: string): Promise<BookingDetail | null> 
     serviceType: data.service_type,
     contractDate: data.created_at,
     eventDate: data.event_date,
+    eventEndDate: (data as any).event_end_date ?? undefined,
     guestsCount: data.guests_count,
     address: data.address,
     notes: data.notes ?? undefined,
