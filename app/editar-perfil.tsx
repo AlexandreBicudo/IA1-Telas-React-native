@@ -88,7 +88,7 @@ export default function EditarPerfilScreen() {
     }
   };
 
-  const handleToggleVisibility = (val: boolean) => {
+  const handleToggleVisibility = async (val: boolean) => {
     if (val) {
       const missing = validateChefProfileForActivation({
         headline,
@@ -107,6 +107,20 @@ export default function EditarPerfilScreen() {
       }
     }
     setIsAvailable(val);
+    if (!chefId) return;
+    try {
+      await updateChefProfile(chefId, {
+        headline: headline.trim(),
+        bio: bio.trim(),
+        dailyRate: Number(dailyRate) || 0,
+        yearsExperience: Number(yearsExperience) || 0,
+        isAvailable: val,
+        specialties,
+      });
+    } catch {
+      setIsAvailable(!val);
+      Alert.alert('Erro', 'Não foi possível atualizar a visibilidade.');
+    }
   };
 
   const handleAddPortfolioPhoto = async () => {
