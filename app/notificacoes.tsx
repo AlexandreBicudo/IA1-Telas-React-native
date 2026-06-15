@@ -144,7 +144,9 @@ export default function NotificacoesScreen() {
       setNotifs((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
     }
     if (n.bookingId) {
-      router.push({ pathname: '/agendamento/[id]', params: { id: n.bookingId, role: 'client' } } as any as Href);
+      // pedido_recebido e pedido_cancelado (pelo cliente) chegam no sino do chef
+      const isChefNotif = n.type === 'pedido_recebido' || (n.type === 'pedido_cancelado' && n.title === 'Contrato cancelado');
+      router.push({ pathname: '/agendamento/[id]', params: { id: n.bookingId, role: isChefNotif ? 'chef' : 'client' } } as any as Href);
     }
   };
 

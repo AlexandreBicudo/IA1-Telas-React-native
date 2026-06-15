@@ -322,8 +322,8 @@ export default function AgendamentoDetailScreen() {
             <View style={styles.actions}>
               {role === 'chef' && booking.status === 'solicitado' && (
                 <>
-                  <ActionBtn label="Recusar" color={c.danger} onPress={() => handleAction('cancelado')} styles={styles} />
-                  <ActionBtn label="Aceitar" color={c.success} onPress={() => handleAction('confirmado')} styles={styles} />
+                  <ActionBtn label="Recusar" color={c.danger} onPress={() => handleAction('cancelado')} compact styles={styles} />
+                  <ActionBtn label="Aceitar contrato" color={c.success} onPress={() => handleAction('confirmado')} compact styles={styles} />
                 </>
               )}
               {role === 'chef' && booking.status === 'confirmado' && (
@@ -420,10 +420,14 @@ function DetailRow({ icon, label, value, styles, c }: { icon: any; label: string
   );
 }
 
-function ActionBtn({ label, color, onPress, styles }: { label: string; color: string; onPress: () => void; styles: any }) {
+function ActionBtn({ label, color, onPress, compact, styles }: { label: string; color: string; onPress: () => void; compact?: boolean; styles: any }) {
   return (
-    <TouchableOpacity style={[styles.actionBtn, { borderColor: color }]} onPress={onPress} activeOpacity={0.8}>
-      <Text style={[styles.actionBtnText, { color }]}>{label}</Text>
+    <TouchableOpacity
+      style={[styles.actionBtn, { borderColor: color }, compact && styles.actionBtnCompact]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <Text style={[styles.actionBtnText, { color }, compact && styles.actionBtnTextCompact]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -528,6 +532,8 @@ const makeStyles = (c: Palette) =>
     actions: { flexDirection: 'row', gap: 10, marginBottom: 16 },
     actionBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
     actionBtnText: { fontSize: 14, fontWeight: '700' },
+    actionBtnCompact: { paddingVertical: 9, borderWidth: 1, borderRadius: 8 },
+    actionBtnTextCompact: { fontSize: 12, fontWeight: '600' },
 
     // Review
     reviewBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: c.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 16, justifyContent: 'center' },
