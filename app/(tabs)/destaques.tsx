@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GSpacing, GShadow, brandFont, type Palette } from '@/constants/gourmet-theme';
 import { AccentBar, ScreenGradient } from '@/components/ui-gourmet';
@@ -95,6 +96,7 @@ function ChefCard({ chef, c, styles, onPress }: {
 export default function DestaquesScreen() {
   const router = useRouter();
   const c = useColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(c), [c]);
 
   const [chefs, setChefs] = useState<ChefListing[]>([]);
@@ -127,8 +129,7 @@ export default function DestaquesScreen() {
 
   return (
     <ScreenGradient>
-      <AccentBar />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 8 }]} showsVerticalScrollIndicator={false}>
         {/* Cabeçalho */}
         <View style={styles.header}>
           <View>
@@ -212,11 +213,12 @@ export default function DestaquesScreen() {
   );
 }
 
+
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const makeStyles = (c: Palette) =>
   StyleSheet.create({
-    scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 48, paddingTop: 20 },
+    scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 48 },
     header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },
     title: { fontSize: 26, fontWeight: '700', color: c.cream, fontFamily: brandFont },
     subtitle: { fontSize: 13, color: c.muted, marginTop: 4 },

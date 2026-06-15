@@ -97,7 +97,16 @@ export default function AgendarScreen() {
   const [desiredDuration, setDesiredDuration] = useState(2);
 
   const [serviceType, setServiceType] = useState<ServiceType>('diaria');
-  const [address, setAddress] = useState('');
+
+  // Campos de endereço separados
+  const [addrRua, setAddrRua] = useState('');
+  const [addrNumero, setAddrNumero] = useState('');
+  const [addrBairro, setAddrBairro] = useState('');
+  const [addrCidade, setAddrCidade] = useState('');
+  const [addrUF, setAddrUF] = useState('');
+  const [addrCEP, setAddrCEP] = useState('');
+  const [addrRef, setAddrRef] = useState('');
+
   const [guests, setGuests] = useState('2');
   const [booking, setBooking] = useState(false);
 
@@ -254,11 +263,19 @@ export default function AgendarScreen() {
     setSelectingEnd(false);
   };
 
+  const composedAddress = [
+    addrRua.trim() + (addrNumero.trim() ? `, ${addrNumero.trim()}` : ''),
+    addrBairro.trim(),
+    addrCidade.trim() + (addrUF.trim() ? ` - ${addrUF.trim().toUpperCase()}` : ''),
+    addrCEP.trim() ? `CEP ${addrCEP.trim()}` : '',
+    addrRef.trim() ? `Ref: ${addrRef.trim()}` : '',
+  ].filter(Boolean).join(', ');
+
   const isFormReady = useMemo(() => {
-    if (!address.trim() || parseInt(guests, 10) < 1) return false;
+    if (!addrRua.trim() || !addrCidade.trim() || parseInt(guests, 10) < 1) return false;
     if (serviceType === 'diaria') return Boolean(selectedDate);
     return Boolean(startDate && endDate && endDate >= startDate);
-  }, [address, guests, serviceType, selectedDate, startDate, endDate]);
+  }, [addrRua, addrCidade, guests, serviceType, selectedDate, startDate, endDate]);
 
   const handleConfirmar = async () => {
     const eventDate = serviceType === 'diaria' ? selectedDate : startDate;
@@ -266,8 +283,8 @@ export default function AgendarScreen() {
       Alert.alert('Selecione uma data', 'Toque em um dia disponível no calendário.');
       return;
     }
-    if (!address.trim()) {
-      Alert.alert('Endereço obrigatório', 'Informe o endereço do evento.');
+    if (!addrRua.trim() || !addrCidade.trim()) {
+      Alert.alert('Endereço incompleto', 'Preencha pelo menos a rua e a cidade do evento.');
       return;
     }
     const guestsNum = parseInt(guests, 10);
@@ -284,7 +301,7 @@ export default function AgendarScreen() {
         eventEndDate: serviceType === 'evento' && endDate ? endDate : undefined,
         totalPrice,
         guestsCount: guestsNum,
-        address: address.trim(),
+        address: composedAddress,
         serviceType,
       });
       Alert.alert(
@@ -490,13 +507,92 @@ export default function AgendarScreen() {
         )}
 
         {/* Endereço */}
-        <Text style={styles.section}>Endereço do evento</Text>
+        <Text style={styles.section}>
+          {serviceType === 'diaria' ? 'Endereço do serviço' : 'Endereço do evento'}
+        </Text>
+
+        {/* CEP */}
+        <Text style={styles.fieldLabel}>CEP</Text>
+        <TextInput
+          style={[styles.input, styles.inputCEP]}
+          placeholder="00000-000"
+          placeholderTextColor={c.hint}
+          value={addrCEP}
+          onChangeText={(v) => setAddrCEP(v.replace(/\D/g, '').replace(/^(\d{5})(\d)/, '$1-$2').slice(0, 9))}
+          keyboardType="numeric"
+          maxLength={9}
+        />
+
+        {/* Rua + Número */}
+        <View style={styles.addrRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.fieldLabel}>Rua <Text style={styles.required}>*</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Nome da rua ou avenida"
+              placeholderTextColor={c.hint}
+              value={addrRua}
+              onChangeText={setAddrRua}
+            />
+          </View>
+          <View style={styles.addrNumeroWrap}>
+            <Text style={styles.fieldLabel}>Número</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Nº"
+              placeholderTextColor={c.hint}
+              value={addrNumero}
+              onChangeText={setAddrNumero}
+              keyboardType="numeric"
+              maxLength={6}
+            />
+          </View>
+        </View>
+
+        {/* Bairro */}
+        <Text style={styles.fieldLabel}>Bairro</Text>
         <TextInput
           style={styles.input}
-          placeholder="Rua, número, bairro, cidade"
+          placeholder="Nome do bairro"
           placeholderTextColor={c.hint}
-          value={address}
-          onChangeText={setAddress}
+          value={addrBairro}
+          onChangeText={setAddrBairro}
+        />
+
+        {/* Cidade + UF */}
+        <View style={styles.addrRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.fieldLabel}>Cidade <Text style={styles.required}>*</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Cidade"
+              placeholderTextColor={c.hint}
+              value={addrCidade}
+              onChangeText={setAddrCidade}
+            />
+          </View>
+          <View style={styles.addrUFWrap}>
+            <Text style={styles.fieldLabel}>UF</Text>
+            <TextInput
+              style={[styles.input, { textAlign: 'center' }]}
+              placeholder="SP"
+              placeholderTextColor={c.hint}
+              value={addrUF}
+              onChangeText={(v) => setAddrUF(v.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2))}
+              autoCapitalize="characters"
+              maxLength={2}
+            />
+          </View>
+        </View>
+
+        {/* Referência */}
+        <Text style={styles.fieldLabel}>Referência <Text style={styles.fieldOptional}>(opcional)</Text></Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ex: próximo ao shopping, portão azul..."
+          placeholderTextColor={c.hint}
+          value={addrRef}
+          onChangeText={setAddrRef}
         />
 
         {/* Convidados */}
@@ -647,6 +743,18 @@ const makeStyles = (c: Palette) =>
       paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: c.cream,
     },
     inputSmall: { width: 120 },
+    inputCEP: { width: 140 },
+
+    // Endereço
+    fieldLabel: {
+      fontSize: 11, color: c.primary, letterSpacing: 1.5, fontWeight: '600',
+      textTransform: 'uppercase', marginTop: 14, marginBottom: 6,
+    },
+    required: { color: c.danger },
+    fieldOptional: { color: c.hint, fontWeight: '400', textTransform: 'none', letterSpacing: 0 },
+    addrRow: { flexDirection: 'row', gap: 10 },
+    addrNumeroWrap: { width: 90 },
+    addrUFWrap: { width: 68 },
 
     // Painel de preço
     pricePanel: { marginTop: 24, gap: 8 },

@@ -82,7 +82,7 @@ export async function getChefReviews(chefId: string): Promise<Review[]> {
     .select(`
       id, rating, comment, created_at, chef_response, chef_response_at,
       reviewer:profiles!reviews_reviewer_id_fkey ( full_name ),
-      booking:bookings!reviews_booking_id_fkey ( chef_id )
+      booking:bookings!reviews_booking_id_fkey!inner ( chef_id )
     `)
     .eq('booking.chef_id', chefId)
     .order('created_at', { ascending: false })
@@ -129,7 +129,7 @@ export async function getMyReceivedReviews(): Promise<Review[]> {
     .select(`
       id, rating, comment, created_at, chef_response, chef_response_at,
       reviewer:profiles!reviews_reviewer_id_fkey ( full_name ),
-      booking:bookings!reviews_booking_id_fkey ( chef_id )
+      booking:bookings!reviews_booking_id_fkey!inner ( chef_id )
     `)
     .eq('booking.chef_id', myChef.id)
     .order('created_at', { ascending: false });

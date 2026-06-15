@@ -358,18 +358,20 @@ export default function EditarPerfilScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
           <FontAwesome name="chevron-left" size={18} color={c.cream} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Editar perfil</Text>
+        <Text style={styles.headerTitle}>
+          {section === 'conta' ? 'Minha conta' : section === 'profissional' ? 'Perfil profissional' : 'Editar perfil'}
+        </Text>
         <View style={styles.backBtn} />
       </View>
 
       <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
         {/* ══════════════════════════════════════════
-            SEÇÃO 1 — MINHA CONTA
+            SEÇÃO 1 — MINHA CONTA (oculta quando veio de "Gerenciar serviço")
             Dados de acesso ao app, nome e foto pessoal.
             Usados em saudações: "Bom dia, {firstName}!"
         ══════════════════════════════════════════ */}
-        <View style={[styles.sectionCard, { borderColor: c.primary + '50' }]}>
+        {section !== 'profissional' && <View style={[styles.sectionCard, { borderColor: c.primary + '50' }]}>
           <View style={styles.sectionCardHeader}>
             <View style={[styles.sectionCardIcon, { backgroundColor: c.primary + '20' }]}>
               <FontAwesome name="user-circle-o" size={16} color={c.primary} />
@@ -467,7 +469,7 @@ export default function EditarPerfilScreen() {
             {saving ? <ActivityIndicator size="small" color={c.onPrimary} />
               : <Text style={[styles.saveAccountBtnText, { color: c.onPrimary }]}>Salvar dados da conta</Text>}
           </TouchableOpacity>
-        </View>
+        </View>}
 
         {/* ══════════════════════════════════════════
             SEÇÃO 2 — PERFIL PROFISSIONAL
@@ -475,7 +477,7 @@ export default function EditarPerfilScreen() {
             Chef pode usar nome artístico (vulgo) e
             foto profissional diferente da pessoal.
         ══════════════════════════════════════════ */}
-        {chefId && (
+        {chefId && section !== 'conta' && (
           <View
             style={[styles.sectionCard, { borderColor: c.success + '50', marginTop: 20 }]}
             onLayout={(e: LayoutChangeEvent) => { proSectionY.current = e.nativeEvent.layout.y; }}

@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GSpacing, GShadow, brandFont, type Palette } from '@/constants/gourmet-theme';
 import { AccentBar, ScreenGradient } from '@/components/ui-gourmet';
@@ -32,6 +33,7 @@ function fmtBRL(n: number) {
 }
 
 type HistoryFilter = 'all' | 'concluido' | 'cancelado';
+type MainTab = 'cliente' | 'chef';
 
 const FILTERS: { key: HistoryFilter; label: string }[] = [
   { key: 'all', label: 'Todos' },
@@ -42,20 +44,23 @@ const FILTERS: { key: HistoryFilter; label: string }[] = [
 export default function HistoricoScreen() {
   const router = useRouter();
   const c = useColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(c), [c]);
 
-  const [items, setItems] = useState<BookingListItem[]>([]);
+  const [clientItems, setClientItems] = useState<BookingListItem[]>([]);
+  const [chefItems, setChefItems] = useState<BookingListItem[]>([]);
   const [isChef, setIsChef] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<HistoryFilter>('all');
+  const [mainTab, setMainTab] = useState<MainTab>('cliente');
 
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([getMyBookings(), getMyAccount()]).then(([bookings, account]) => {
-      // Para clientes: histórico de serviços contratados
-      // Para chefs: redireciona mentalmente para Carteira (mas ainda mostra serviços prestados)
       const past = bookings.asClient.filter((b) => b.status === 'concluido' || b.status === 'cancelado');
-      setItems(past);
+      const executed = bookings.asChef.filter((b) => b.status === 'concluido');
+      setClientItems(past);
+      setChefItems(executed);
       setIsChef(account?.hasChefProfile ?? false);
       setLoading(false);
     });
@@ -63,133 +68,222 @@ export default function HistoricoScreen() {
 
   useFocusEffect(load);
 
-  const filtered = filter === 'all' ? items : items.filter((b) => b.status === filter);
-  const totalSpent = items.filter((b) => b.status === 'concluido').reduce((s, b) => s + b.totalPrice, 0);
-  const completedCount = items.filter((b) => b.status === 'concluido').length;
+  // ─── Cliente tab ───
+  const clientFiltered = filter === 'all' ? clientItems : clientItems.filter((b) => b.status === filter);
+  const totalSpent = clientItems.filter((b) => b.status === 'concluido').reduce((s, b) => s + b.totalPrice, 0);
+  const completedCount = clientItems.filter((b) => b.status === 'concluido').length;
+
+  // ─── Chef tab ───
+  const totalEarned = chefItems.reduce((s, b) => s + b.totalPrice, 0);
 
   return (
     <ScreenGradient>
-      <AccentBar />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 8 }]} showsVerticalScrollIndicator={false}>
         {/* Cabeçalho */}
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Histórico</Text>
-            <Text style={styles.subtitle}>Serviços contratados no passado</Text>
+            <Text style={styles.subtitle}>
+              {mainTab === 'cliente' ? 'Serviços que você contratou' : 'Serviços que você executou'}
+            </Text>
           </View>
           <NotificationBell />
         </View>
 
-        {/* Resumo de gastos */}
-        {!loading && items.length > 0 && (
-          <View style={styles.summaryRow}>
-            <View style={[styles.summaryCard, { borderColor: c.success + '40' }]}>
-              <FontAwesome name="check-circle" size={16} color={c.success} />
-              <Text style={styles.summaryValue}>{completedCount}</Text>
-              <Text style={styles.summaryLabel}>Concluídos</Text>
-            </View>
-            <View style={[styles.summaryCard, { borderColor: c.primary + '40', flex: 2 }]}>
-              <FontAwesome name="money" size={16} color={c.primary} />
-              <Text style={[styles.summaryValue, { color: c.primary }]}>R$ {fmtBRL(totalSpent)}</Text>
-              <Text style={styles.summaryLabel}>Total investido</Text>
-            </View>
-            <View style={[styles.summaryCard, { borderColor: c.danger + '40' }]}>
-              <FontAwesome name="times-circle" size={16} color={c.danger} />
-              <Text style={styles.summaryValue}>{items.length - completedCount}</Text>
-              <Text style={styles.summaryLabel}>Cancelados</Text>
-            </View>
+        {/* Tab switcher — só aparece para chefs */}
+        {isChef && (
+          <View style={styles.tabRow}>
+            <TouchableOpacity
+              style={[styles.tabBtn, mainTab === 'cliente' && styles.tabBtnActive]}
+              onPress={() => setMainTab('cliente')}
+              activeOpacity={0.8}
+            >
+              <FontAwesome name="shopping-bag" size={13} color={mainTab === 'cliente' ? c.onPrimary : c.muted} />
+              <Text style={[styles.tabBtnText, mainTab === 'cliente' && { color: c.onPrimary }]}>Contratei</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tabBtn, mainTab === 'chef' && styles.tabBtnActiveGreen]}
+              onPress={() => setMainTab('chef')}
+              activeOpacity={0.8}
+            >
+              <FontAwesome name="cutlery" size={13} color={mainTab === 'chef' ? '#fff' : c.muted} />
+              <Text style={[styles.tabBtnText, mainTab === 'chef' && { color: '#fff' }]}>Executei</Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        {/* Filtros */}
-        <View style={styles.filterRow}>
-          {FILTERS.map((f) => (
-            <TouchableOpacity
-              key={f.key}
-              style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
-              onPress={() => setFilter(f.key)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.filterText, filter === f.key && { color: c.onPrimary }]}>{f.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Lista */}
-        {loading ? (
-          [1, 2, 3].map((n) => <SkeletonBookingCard key={n} />)
-        ) : filtered.length === 0 ? (
-          <View style={styles.emptyWrap}>
-            <View style={styles.emptyIcon}>
-              <FontAwesome name="history" size={28} color={c.hint} />
-            </View>
-            <Text style={styles.emptyTitle}>
-              {items.length === 0
-                ? 'Nenhum serviço no histórico'
-                : `Nenhum serviço ${filter === 'concluido' ? 'concluído' : 'cancelado'}`}
-            </Text>
-            <Text style={styles.emptySub}>
-              {items.length === 0
-                ? 'Seus serviços contratados e concluídos aparecerão aqui.'
-                : 'Tente outro filtro acima.'}
-            </Text>
-            {items.length === 0 && (
-              <TouchableOpacity
-                style={styles.ctaBtn}
-                onPress={() => router.push('/catalogo' as any as Href)}
-              >
-                <Text style={styles.ctaBtnText}>Encontrar um chef</Text>
-              </TouchableOpacity>
+        {/* ════════ TAB CLIENTE ════════ */}
+        {mainTab === 'cliente' && (
+          <>
+            {!loading && clientItems.length > 0 && (
+              <View style={styles.summaryRow}>
+                <View style={[styles.summaryCard, { borderColor: c.success + '40' }]}>
+                  <FontAwesome name="check-circle" size={16} color={c.success} />
+                  <Text style={styles.summaryValue}>{completedCount}</Text>
+                  <Text style={styles.summaryLabel}>Concluídos</Text>
+                </View>
+                <View style={[styles.summaryCard, { borderColor: c.primary + '40', flex: 2 }]}>
+                  <FontAwesome name="money" size={16} color={c.primary} />
+                  <Text style={[styles.summaryValue, { color: c.primary }]}>R$ {fmtBRL(totalSpent)}</Text>
+                  <Text style={styles.summaryLabel}>Total investido</Text>
+                </View>
+                <View style={[styles.summaryCard, { borderColor: c.danger + '40' }]}>
+                  <FontAwesome name="times-circle" size={16} color={c.danger} />
+                  <Text style={styles.summaryValue}>{clientItems.length - completedCount}</Text>
+                  <Text style={styles.summaryLabel}>Cancelados</Text>
+                </View>
+              </View>
             )}
-          </View>
-        ) : (
-          filtered.map((b) => (
-            <HistoryCard key={b.id} booking={b} c={c} styles={styles}
-              onPress={() => router.push({ pathname: '/agendamento/[id]', params: { id: b.id, role: 'client' } } as any as Href)}
-              onRebook={() => router.push({ pathname: '/chef/[id]', params: { id: b.chefId } } as any as Href)}
-            />
-          ))
+
+            <View style={styles.filterRow}>
+              {FILTERS.map((f) => (
+                <TouchableOpacity
+                  key={f.key}
+                  style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
+                  onPress={() => setFilter(f.key)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.filterText, filter === f.key && { color: c.onPrimary }]}>{f.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {loading ? (
+              [1, 2, 3].map((n) => <SkeletonBookingCard key={n} />)
+            ) : clientFiltered.length === 0 ? (
+              <EmptyState
+                icon="history" styles={styles} c={c}
+                title={clientItems.length === 0 ? 'Nenhum serviço no histórico' : `Nenhum serviço ${filter === 'concluido' ? 'concluído' : 'cancelado'}`}
+                sub={clientItems.length === 0 ? 'Seus serviços contratados e concluídos aparecerão aqui.' : 'Tente outro filtro acima.'}
+                ctaLabel={clientItems.length === 0 ? 'Encontrar um chef' : undefined}
+                onCta={() => router.push('/catalogo' as any as Href)}
+              />
+            ) : (
+              clientFiltered.map((b) => (
+                <HistoryCard
+                  key={b.id} booking={b} c={c} styles={styles} mode="client"
+                  onPress={() => router.push({ pathname: '/agendamento/[id]', params: { id: b.id, role: 'client' } } as any as Href)}
+                  onAction={() => router.push({ pathname: '/chef/[id]', params: { id: b.chefId } } as any as Href)}
+                  actionLabel="Remarcar este chef"
+                />
+              ))
+            )}
+          </>
+        )}
+
+        {/* ════════ TAB CHEF ════════ */}
+        {mainTab === 'chef' && (
+          <>
+            {!loading && (
+              <View style={styles.summaryRow}>
+                <View style={[styles.summaryCard, { borderColor: c.success + '40', flex: 2 }]}>
+                  <FontAwesome name="dollar" size={16} color={c.success} />
+                  <Text style={[styles.summaryValue, { color: c.success }]}>R$ {fmtBRL(totalEarned)}</Text>
+                  <Text style={styles.summaryLabel}>Total recebido</Text>
+                </View>
+                <View style={[styles.summaryCard, { borderColor: c.primary + '40' }]}>
+                  <FontAwesome name="check-circle" size={16} color={c.primary} />
+                  <Text style={styles.summaryValue}>{chefItems.length}</Text>
+                  <Text style={styles.summaryLabel}>Executados</Text>
+                </View>
+              </View>
+            )}
+
+            {loading ? (
+              [1, 2].map((n) => <SkeletonBookingCard key={n} />)
+            ) : chefItems.length === 0 ? (
+              <EmptyState
+                icon="cutlery" styles={styles} c={c}
+                title="Nenhum serviço executado"
+                sub="Quando você concluir um serviço como chef, ele aparecerá aqui com o valor recebido."
+              />
+            ) : (
+              chefItems.map((b) => (
+                <HistoryCard
+                  key={b.id} booking={b} c={c} styles={styles} mode="chef"
+                  onPress={() => router.push({ pathname: '/agendamento/[id]', params: { id: b.id, role: 'chef' } } as any as Href)}
+                />
+              ))
+            )}
+          </>
         )}
       </ScrollView>
     </ScreenGradient>
   );
 }
 
+// ─── EmptyState ───────────────────────────────────────────────────────────────
+
+function EmptyState({ icon, styles, c, title, sub, ctaLabel, onCta }: {
+  icon: React.ComponentProps<typeof FontAwesome>['name'];
+  styles: ReturnType<typeof makeStyles>;
+  c: Palette;
+  title: string; sub: string;
+  ctaLabel?: string; onCta?: () => void;
+}) {
+  return (
+    <View style={styles.emptyWrap}>
+      <View style={styles.emptyIcon}>
+        <FontAwesome name={icon} size={28} color={c.hint} />
+      </View>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptySub}>{sub}</Text>
+      {ctaLabel && onCta && (
+        <TouchableOpacity style={styles.ctaBtn} onPress={onCta}>
+          <Text style={styles.ctaBtnText}>{ctaLabel}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
 // ─── Card de histórico ────────────────────────────────────────────────────────
 
-function HistoryCard({ booking, c, styles, onPress, onRebook }: {
+function HistoryCard({ booking, c, styles, mode, onPress, onAction, actionLabel }: {
   booking: BookingListItem; c: Palette;
   styles: ReturnType<typeof makeStyles>;
-  onPress: () => void; onRebook: () => void;
+  mode: 'client' | 'chef';
+  onPress: () => void;
+  onAction?: () => void;
+  actionLabel?: string;
 }) {
   const isConcluido = booking.status === 'concluido';
   const statusColor = isConcluido ? c.success : c.danger;
+  const stripColor = mode === 'chef' ? c.success : statusColor;
+  const displayName = mode === 'chef' ? booking.clientName : booking.chefName;
 
   return (
     <TouchableOpacity style={[styles.card, GShadow]} activeOpacity={0.85} onPress={onPress}>
-      <View style={[styles.cardStrip, { backgroundColor: statusColor }]} />
+      <View style={[styles.cardStrip, { backgroundColor: stripColor }]} />
       <View style={styles.cardBody}>
         <View style={styles.cardHead}>
           {booking.counterpartAvatarUrl ? (
             <Image source={{ uri: booking.counterpartAvatarUrl }} style={styles.avatar} />
           ) : (
-            <View style={[styles.avatarFallback, { backgroundColor: statusColor + '22' }]}>
-              <Text style={[styles.avatarText, { color: statusColor }]}>{getInitials(booking.chefName)}</Text>
+            <View style={[styles.avatarFallback, { backgroundColor: stripColor + '22' }]}>
+              <Text style={[styles.avatarText, { color: stripColor }]}>{getInitials(displayName)}</Text>
             </View>
           )}
           <View style={styles.cardInfo}>
-            <Text style={styles.chefName}>{booking.chefName}</Text>
+            <Text style={styles.chefName}>{displayName}</Text>
             <Text style={styles.chefHead} numberOfLines={1}>{booking.address.split(',')[0]}</Text>
           </View>
           <View style={styles.cardRight}>
-            <Text style={[styles.price, { color: isConcluido ? c.primary : c.muted }]}>
-              R$ {booking.totalPrice.toFixed(0)}
+            <Text style={[styles.price, { color: mode === 'chef' ? c.success : (isConcluido ? c.primary : c.muted) }]}>
+              {mode === 'chef' ? '+' : ''}R$ {booking.totalPrice.toFixed(0)}
             </Text>
-            <View style={[styles.statusPill, { backgroundColor: statusColor + '20' }]}>
-              <Text style={[styles.statusText, { color: statusColor }]}>
-                {isConcluido ? 'Concluído' : 'Cancelado'}
-              </Text>
-            </View>
+            {mode === 'client' && (
+              <View style={[styles.statusPill, { backgroundColor: statusColor + '20' }]}>
+                <Text style={[styles.statusText, { color: statusColor }]}>
+                  {isConcluido ? 'Concluído' : 'Cancelado'}
+                </Text>
+              </View>
+            )}
+            {mode === 'chef' && (
+              <View style={[styles.statusPill, { backgroundColor: c.success + '20' }]}>
+                <Text style={[styles.statusText, { color: c.success }]}>Executado</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -204,10 +298,10 @@ function HistoryCard({ booking, c, styles, onPress, onRebook }: {
           </View>
         </View>
 
-        {isConcluido && (
-          <TouchableOpacity style={styles.rebookBtn} onPress={onRebook} activeOpacity={0.8}>
+        {isConcluido && mode === 'client' && onAction && actionLabel && (
+          <TouchableOpacity style={styles.rebookBtn} onPress={onAction} activeOpacity={0.8}>
             <FontAwesome name="refresh" size={12} color={c.primary} />
-            <Text style={styles.rebookText}>Remarcar este chef</Text>
+            <Text style={styles.rebookText}>{actionLabel}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -219,10 +313,20 @@ function HistoryCard({ booking, c, styles, onPress, onRebook }: {
 
 const makeStyles = (c: Palette) =>
   StyleSheet.create({
-    scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 48, paddingTop: 20 },
+    scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 48 },
     header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 },
     title: { fontSize: 26, fontWeight: '700', color: c.cream, fontFamily: brandFont },
     subtitle: { fontSize: 13, color: c.muted, marginTop: 4 },
+
+    // Tab switcher
+    tabRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+    tabBtn: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+      height: 44, borderRadius: 10, borderWidth: 1, borderColor: c.border, backgroundColor: c.card,
+    },
+    tabBtnActive: { backgroundColor: c.primary, borderColor: c.primary },
+    tabBtnActiveGreen: { backgroundColor: c.success, borderColor: c.success },
+    tabBtnText: { fontSize: 14, fontWeight: '700', color: c.muted },
 
     // Resumo
     summaryRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
