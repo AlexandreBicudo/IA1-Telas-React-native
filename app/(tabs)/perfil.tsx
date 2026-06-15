@@ -16,6 +16,7 @@ import {
 
 import { GSpacing, brandFont, type Palette } from '@/constants/gourmet-theme';
 import { AccentBar, ScreenGradient } from '@/components/ui-gourmet';
+import { NotificationBell } from '@/components/NotificationBell';
 import { useColors, useTheme } from '@/components/theme-context';
 import { authErrorMessage, signOut } from '@/services/authService';
 import { activateChefProfile, getMyAccount, type MyAccount } from '@/services/profileService';
@@ -87,6 +88,10 @@ export default function PerfilScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <AccentBar style={styles.topAccent} />
 
+        <View style={styles.heroHeader}>
+          <View style={{ flex: 1 }} />
+          <NotificationBell />
+        </View>
         <View style={styles.hero}>
           <Avatar uri={account.avatarUrl} name={account.name || 'Usuário'} size={84} c={c} styles={styles} />
           <Text style={styles.greeting}>{getGreeting(account.name || 'você')}</Text>
@@ -117,6 +122,20 @@ export default function PerfilScreen() {
           sub="Busque e contrate profissionais para seu evento."
           onPress={() => router.push('/catalogo')}
         />
+
+        {account.hasChefProfile && (
+          <>
+            <Text style={styles.sectionTitle}>Financeiro</Text>
+            <ActionCard
+              styles={styles} c={c}
+              iconBg={c.success + '22'} iconColor={c.success}
+              icon="dollar"
+              title="Minha carteira"
+              sub="Ganhos, histórico financeiro e estatísticas."
+              onPress={() => router.push('/carteira' as any)}
+            />
+          </>
+        )}
 
         <Text style={styles.sectionTitle}>Meu serviço profissional</Text>
         {account.hasChefProfile ? (
@@ -283,6 +302,7 @@ const makeStyles = (c: Palette) =>
     linkBtnText: { color: c.primary, fontWeight: '600' },
     scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 40 },
     topAccent: { marginHorizontal: -GSpacing.screen, marginBottom: 28 },
+    heroHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
     hero: { alignItems: 'center' },
     avatar: {
       backgroundColor: c.card,
