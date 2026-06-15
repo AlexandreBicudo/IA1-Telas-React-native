@@ -13,7 +13,7 @@ import {
 
 import { GSpacing, GShadow, brandFont, type Palette } from '@/constants/gourmet-theme';
 import { ScreenGradient } from '@/components/ui-gourmet';
-import { useColors, useTheme } from '@/components/theme-context';
+import { useColors } from '@/components/theme-context';
 import {
   getMyNotifications,
   markAsRead,
@@ -47,12 +47,82 @@ function notifIcon(type: NotifType): { icon: React.ComponentProps<typeof FontAwe
   }
 }
 
+const INCOMING_TYPES: NotifType[] = ['pedido_recebido'];
+
+interface NotifGroup {
+  key: string;
+  label: string;
+  icon: React.ComponentProps<typeof FontAwesome>['name'];
+  accentColor: (c: Palette) => string;
+  items: AppNotification[];
+}
+
+function buildGroups(notifs: AppNotification[]): NotifGroup[] {
+  const incoming = notifs.filter((n) => INCOMING_TYPES.includes(n.type));
+  const updates  = notifs.filter((n) => !INCOMING_TYPES.includes(n.type));
+  const groups: NotifGroup[] = [];
+  if (incoming.length > 0) {
+    groups.push({
+      key: 'incoming',
+      label: 'NOVOS CONTRATOS',
+      icon: 'calendar-plus-o',
+      accentColor: (c) => c.warning,
+      items: incoming,
+    });
+  }
+  if (updates.length > 0) {
+    groups.push({
+      key: 'updates',
+      label: 'ATUALIZAÇÕES',
+      icon: 'bell',
+      accentColor: (c) => c.primary,
+      items: updates,
+    });
+  }
+  return groups;
+}
+
+// ─── Card de notificação ──────────────────────────────────────────────────────
+
+function NotifCard({
+  n, c, styles, onPress,
+}: {
+  n: AppNotification;
+  c: Palette;
+  styles: ReturnType<typeof makeStyles>;
+  onPress: () => void;
+}) {
+  const { icon, color } = notifIcon(n.type);
+  const col = color(c);
+  return (
+    <TouchableOpacity
+      style={[styles.notifCard, !n.read && styles.notifCardUnread, GShadow]}
+      activeOpacity={0.85}
+      onPress={onPress}
+    >
+      <View style={[styles.notifIcon, { backgroundColor: col + '20' }]}>
+        <FontAwesome name={icon} size={18} color={col} />
+      </View>
+      <View style={styles.notifContent}>
+        <View style={styles.notifTitleRow}>
+          <Text style={styles.notifTitle} numberOfLines={1}>{n.title}</Text>
+          {!n.read && <View style={[styles.unreadDot, { backgroundColor: col }]} />}
+        </View>
+        <Text style={styles.notifBody} numberOfLines={2}>{n.body}</Text>
+        <Text style={styles.notifTime}>{timeAgo(n.createdAt)}</Text>
+      </View>
+      {n.bookingId && (
+        <FontAwesome name="chevron-right" size={13} color={c.hint} />
+      )}
+    </TouchableOpacity>
+  );
+}
+
 // ─── Tela ─────────────────────────────────────────────────────────────────────
 
 export default function NotificacoesScreen() {
   const router = useRouter();
   const c = useColors();
-  const { mode } = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
 
   const [notifs, setNotifs] = useState<AppNotification[]>([]);
@@ -84,6 +154,7 @@ export default function NotificacoesScreen() {
   };
 
   const unreadCount = notifs.filter((n) => !n.read).length;
+  const groups = useMemo(() => buildGroups(notifs), [notifs]);
 
   return (
     <ScreenGradient>
@@ -110,37 +181,34 @@ export default function NotificacoesScreen() {
             <View style={styles.emptyIcon}>
               <FontAwesome name="bell-o" size={30} color={c.hint} />
             </View>
-            <Text style={styles.emptyTitle}>Nenhuma notificação</Text>
-            <Text style={styles.emptySub}>Quando houver atualizações nos seus agendamentos, elas aparecerão aqui.</Text>
+            <Text style={styles.emptyTitle}>Tudo em dia!</Text>
+            <Text style={styles.emptySub}>Quando chegar um novo contrato ou houver atualização nos seus agendamentos, aparecerá aqui.</Text>
           </View>
         ) : (
-          notifs.map((n, i) => {
-            const { icon, color } = notifIcon(n.type);
-            const col = color(c);
-            return (
-              <TouchableOpacity
-                key={n.id}
-                style={[styles.notifCard, !n.read && styles.notifCardUnread, i > 0 && { marginTop: 8 }, GShadow]}
-                activeOpacity={0.85}
-                onPress={() => handleTap(n)}
-              >
-                <View style={[styles.notifIcon, { backgroundColor: col + '20' }]}>
-                  <FontAwesome name={icon} size={18} color={col} />
+          groups.map((group, gi) => (
+            <View key={group.key} style={gi > 0 ? { marginTop: 24 } : undefined}>
+              {/* Cabeçalho do grupo */}
+              <View style={styles.groupHeader}>
+                <View style={[styles.groupIconWrap, { backgroundColor: group.accentColor(c) + '20' }]}>
+                  <FontAwesome name={group.icon} size={12} color={group.accentColor(c)} />
                 </View>
-                <View style={styles.notifContent}>
-                  <View style={styles.notifTitleRow}>
-                    <Text style={styles.notifTitle} numberOfLines={1}>{n.title}</Text>
-                    {!n.read && <View style={[styles.unreadDot, { backgroundColor: c.primary }]} />}
-                  </View>
-                  <Text style={styles.notifBody} numberOfLines={2}>{n.body}</Text>
-                  <Text style={styles.notifTime}>{timeAgo(n.createdAt)}</Text>
+                <Text style={[styles.groupLabel, { color: group.accentColor(c) }]}>{group.label}</Text>
+                <View style={[styles.groupCount, { backgroundColor: group.accentColor(c) + '20' }]}>
+                  <Text style={[styles.groupCountText, { color: group.accentColor(c) }]}>{group.items.length}</Text>
                 </View>
-                {n.bookingId && (
-                  <FontAwesome name="chevron-right" size={13} color={c.hint} />
+                {group.items.some((n) => !n.read) && (
+                  <View style={[styles.groupUnreadDot, { backgroundColor: group.accentColor(c) }]} />
                 )}
-              </TouchableOpacity>
-            );
-          })
+              </View>
+
+              {/* Cards do grupo */}
+              <View style={styles.groupItems}>
+                {group.items.map((n) => (
+                  <NotifCard key={n.id} n={n} c={c} styles={styles} onPress={() => handleTap(n)} />
+                ))}
+              </View>
+            </View>
+          ))
         )}
       </ScrollView>
     </ScreenGradient>
@@ -161,6 +229,27 @@ const makeStyles = (c: Palette) =>
 
     scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 48, paddingTop: 8 },
     loadingWrap: { alignItems: 'center', marginTop: 80 },
+
+    // Grupo
+    groupHeader: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      marginBottom: 12,
+    },
+    groupIconWrap: {
+      width: 26, height: 26, borderRadius: 13,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    groupLabel: {
+      flex: 1, fontSize: 11, fontWeight: '700', letterSpacing: 1.5,
+    },
+    groupCount: {
+      borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2,
+    },
+    groupCountText: { fontSize: 11, fontWeight: '700' },
+    groupUnreadDot: {
+      width: 7, height: 7, borderRadius: 4,
+    },
+    groupItems: { gap: 8 },
 
     // Cards
     notifCard: {
