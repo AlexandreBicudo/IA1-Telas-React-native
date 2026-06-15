@@ -5,7 +5,7 @@
  * (protegida por RLS: cada parte só vê os próprios agendamentos).
  */
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
-import { getChefPushToken, getPushToken, sendPushToToken } from '@/services/notificationService';
+import { notifyChefBookingCancelled, notifyChefNewBooking, notifyClientStatusChange } from '@/services/notificationCenterService';
 import type { BookingStatus, PricingTier, ServiceType } from '@/types/database';
 
 /**
@@ -52,7 +52,9 @@ export interface ChefEarningsSummary {
   completedJobs: number;
   pendingJobs: number;
   avgRating: number;
-  monthlyData: { label: string; value: number }[];
+  weeklyData: { label: string; value: number }[];   // últimos 7 dias
+  monthlyData: { label: string; value: number }[];  // últimos 6 meses
+  yearlyData: { label: string; value: number }[];   // últimos 12 meses
   recentJobs: { id: string; clientName: string; date: string; amount: number; avatarUrl?: string }[];
 }
 
@@ -147,7 +149,30 @@ const MOCK_EARNINGS: ChefEarningsSummary = {
   completedJobs: 12,
   pendingJobs: 2,
   avgRating: 4.8,
+  weeklyData: [
+    { label: 'dom', value: 0 },
+    { label: 'seg', value: 480 },
+    { label: 'ter', value: 0 },
+    { label: 'qua', value: 750 },
+    { label: 'qui', value: 0 },
+    { label: 'sex', value: 900 },
+    { label: 'sáb', value: 3200 },
+  ],
   monthlyData: [
+    { label: 'jan', value: 1800 },
+    { label: 'fev', value: 2200 },
+    { label: 'mar', value: 1450 },
+    { label: 'abr', value: 2750 },
+    { label: 'mai', value: 2750 },
+    { label: 'jun', value: 3200 },
+  ],
+  yearlyData: [
+    { label: 'jul', value: 1200 },
+    { label: 'ago', value: 2100 },
+    { label: 'set', value: 1700 },
+    { label: 'out', value: 2400 },
+    { label: 'nov', value: 2900 },
+    { label: 'dez', value: 1800 },
     { label: 'jan', value: 1800 },
     { label: 'fev', value: 2200 },
     { label: 'mar', value: 1450 },
@@ -200,7 +225,7 @@ export async function createBooking(params: {
   const numDays = params.eventEndDate ? daysBetween(params.eventDate, params.eventEndDate) : 1;
   const totalPrice = params.totalPrice ?? (params.dailyRate * numDays);
 
-  const { error } = await supabase.from('bookings').insert({
+  const { data: newBooking, error } = await supabase.from('bookings').insert({
     client_id: auth.user.id,
     chef_id: params.chefId,
     service_type: params.serviceType,
@@ -210,7 +235,7 @@ export async function createBooking(params: {
     address: params.address,
     total_price: totalPrice,
     status: 'solicitado',
-  });
+  }).select('id').single();
   if (error) throw error;
 
   // Marca o slot de disponibilidade como reservado (se existir)
@@ -220,11 +245,21 @@ export async function createBooking(params: {
     .eq('chef_id', params.chefId)
     .eq('date', params.eventDate);
 
-  // Notifica o chef sobre o novo pedido
-  const chefToken = await getChefPushToken(params.chefId);
-  if (chefToken) {
-    const dateLabel = new Date(params.eventDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-    sendPushToToken(chefToken, '📅 Novo pedido de agendamento', `Você recebeu um pedido para ${dateLabel}. Acesse a aba Agenda.`);
+  // Notifica o chef via in-app + push
+  try {
+    const { data: clientProfile } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', auth.user.id)
+      .single();
+    await notifyChefNewBooking(
+      params.chefId,
+      clientProfile?.full_name ?? 'Cliente',
+      params.eventDate,
+      newBooking.id,
+    );
+  } catch {
+    // Falha silenciosa — notificação não é bloqueante
   }
 
   return { mock: false };
@@ -281,33 +316,43 @@ export async function updateBookingStatus(id: string, status: BookingStatus): Pr
   const { error } = await supabase.from('bookings').update({ status }).eq('id', id);
   if (error) throw error;
 
-  // Notifica a outra parte sobre a mudança de status
+  // Notifica a outra parte via in-app + push
   try {
     const { data: booking } = await supabase
       .from('bookings')
-      .select('client_id, chef_id, event_date')
+      .select(`
+        client_id, chef_id, event_date,
+        chef_profiles ( profile_id, profiles ( full_name ) ),
+        client:profiles!bookings_client_id_fkey ( full_name )
+      `)
       .eq('id', id)
       .single();
     if (!booking) return;
 
     const { data: authData } = await supabase.auth.getUser();
     const myId = authData.user?.id ?? '';
+    const isActingAsChef = myId !== (booking as any).client_id;
 
-    const dateLabel = new Date(booking.event_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-    const msgs: Partial<Record<BookingStatus, string>> = {
-      confirmado:  `✅ Agendamento confirmado para ${dateLabel}!`,
-      cancelado:   `❌ Agendamento de ${dateLabel} foi cancelado.`,
-      concluido:   `⭐ Serviço de ${dateLabel} marcado como concluído!`,
-    };
-    const body = msgs[status];
-    if (!body) return;
-
-    // Se sou o chef, notificou o cliente — e vice-versa
-    const isChef = myId !== booking.client_id;
-    const token = isChef
-      ? await getPushToken(booking.client_id)
-      : await getChefPushToken(booking.chef_id);
-    if (token) sendPushToToken(token, 'SeuChefe Gourmet', body);
+    if (isActingAsChef && (status === 'confirmado' || status === 'cancelado' || status === 'concluido')) {
+      // Chef agindo → notifica cliente
+      const chefName = (booking as any).chef_profiles?.profiles?.full_name ?? 'Chef';
+      await notifyClientStatusChange(
+        (booking as any).client_id,
+        chefName,
+        status as 'confirmado' | 'cancelado' | 'concluido',
+        (booking as any).event_date,
+        id,
+      );
+    } else if (!isActingAsChef && status === 'cancelado') {
+      // Cliente cancelando → notifica chef
+      const clientName = (booking as any).client?.full_name ?? 'Cliente';
+      await notifyChefBookingCancelled(
+        (booking as any).chef_id,
+        clientName,
+        (booking as any).event_date,
+        id,
+      );
+    }
   } catch {
     // Falha silenciosa — não impede a atualização
   }
@@ -430,9 +475,30 @@ export async function getChefEarnings(): Promise<ChefEarningsSummary | null> {
     .filter((j) => { const d = new Date(j.event_date); return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear; })
     .reduce((sum, j) => sum + Number(j.total_price), 0);
 
+  const weeklyData = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - (6 - i));
+    const dateStr = d.toISOString().substring(0, 10);
+    const value = completed
+      .filter((j) => j.event_date.substring(0, 10) === dateStr)
+      .reduce((sum, j) => sum + Number(j.total_price), 0);
+    return { label: d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''), value };
+  });
+
   const monthlyData = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(now);
     d.setMonth(d.getMonth() - (5 - i));
+    const m = d.getMonth();
+    const y = d.getFullYear();
+    const value = completed
+      .filter((j) => { const jd = new Date(j.event_date); return jd.getMonth() === m && jd.getFullYear() === y; })
+      .reduce((sum, j) => sum + Number(j.total_price), 0);
+    return { label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''), value };
+  });
+
+  const yearlyData = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now);
+    d.setMonth(d.getMonth() - (11 - i));
     const m = d.getMonth();
     const y = d.getFullYear();
     const value = completed
@@ -455,7 +521,9 @@ export async function getChefEarnings(): Promise<ChefEarningsSummary | null> {
     completedJobs: completed.length,
     pendingJobs: pending.length,
     avgRating: myChef.rating_avg ?? 0,
+    weeklyData,
     monthlyData,
+    yearlyData,
     recentJobs,
   };
 }

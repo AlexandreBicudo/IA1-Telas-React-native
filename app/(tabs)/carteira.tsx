@@ -78,6 +78,13 @@ function BarChart({ data, c }: { data: { label: string; value: number }[]; c: Pa
 
 // ─── Tela principal ───────────────────────────────────────────────────────────
 
+type ChartRange = '7d' | '6m' | '12m';
+const RANGE_OPTS: { key: ChartRange; label: string; title: string }[] = [
+  { key: '7d',  label: 'Semana',  title: 'ÚLTIMOS 7 DIAS' },
+  { key: '6m',  label: '6 Meses', title: 'ÚLTIMOS 6 MESES' },
+  { key: '12m', label: 'Ano',     title: 'ÚLTIMOS 12 MESES' },
+];
+
 export default function CarteiraScreen() {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -86,6 +93,7 @@ export default function CarteiraScreen() {
   const [loading, setLoading] = useState(true);
   const [notChef, setNotChef] = useState(false);
   const [upcomingJobs, setUpcomingJobs] = useState<BookingListItem[]>([]);
+  const [chartRange, setChartRange] = useState<ChartRange>('6m');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -170,9 +178,33 @@ export default function CarteiraScreen() {
             {/* ── Gráfico de barras ── */}
             <View style={[styles.section, GShadow]}>
               <View style={styles.sectionHead}>
-                <Text style={styles.sectionTitle}>ÚLTIMOS 6 MESES</Text>
+                <Text style={styles.sectionTitle}>
+                  {RANGE_OPTS.find((o) => o.key === chartRange)?.title}
+                </Text>
               </View>
-              <BarChart data={data.monthlyData} c={c} />
+              {/* Seletor de período */}
+              <View style={styles.rangeRow}>
+                {RANGE_OPTS.map((o) => (
+                  <TouchableOpacity
+                    key={o.key}
+                    style={[styles.rangeBtn, chartRange === o.key && { backgroundColor: c.primary, borderColor: c.primary }]}
+                    onPress={() => setChartRange(o.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.rangeBtnText, chartRange === o.key && { color: '#fff' }]}>
+                      {o.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <BarChart
+                data={
+                  chartRange === '7d' ? data.weeklyData
+                  : chartRange === '12m' ? data.yearlyData
+                  : data.monthlyData
+                }
+                c={c}
+              />
             </View>
 
             {/* ── Trabalhos recentes ── */}
@@ -355,8 +387,16 @@ const makeStyles = (c: Palette) =>
       padding: 16,
       marginBottom: 14,
     },
-    sectionHead: { marginBottom: 14 },
+    sectionHead: { marginBottom: 10 },
     sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: c.muted },
+
+    // Range selector
+    rangeRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
+    rangeBtn: {
+      flex: 1, paddingVertical: 6, borderRadius: 8,
+      borderWidth: 1, borderColor: c.border, alignItems: 'center',
+    },
+    rangeBtnText: { fontSize: 12, fontWeight: '600', color: c.muted },
 
     // Job rows
     jobRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
