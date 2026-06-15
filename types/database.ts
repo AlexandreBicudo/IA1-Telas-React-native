@@ -7,6 +7,13 @@
  */
 
 export type UserRole = 'cliente' | 'chef';
+
+/** Faixa de dias com preço por dia (precificação dinâmica do chef). */
+export interface PricingTier {
+  minDays: number;
+  maxDays: number | null; // null = sem limite superior (ex: "6+ dias")
+  ratePerDay: number;
+}
 export type VerificationStatus = 'pendente' | 'aprovado' | 'rejeitado';
 export type ServiceType = 'diaria' | 'evento';
 export type BookingStatus =
@@ -62,6 +69,7 @@ export interface ChefProfile {
   rating_count: number;
   verification_status: VerificationStatus;
   is_available: boolean;
+  pricing_tiers?: PricingTier[] | null;
 }
 
 /** Forma achatada usada pelo Catálogo e pela tela de Perfil (chef + profile + agregados). */
@@ -80,6 +88,7 @@ export interface ChefListing {
   ratingCount: number;
   verificationStatus: VerificationStatus;
   isAvailable: boolean;
+  pricingTiers?: PricingTier[] | null;
   specialties: string[];
   experiences?: WorkExperience[];
   portfolio?: PortfolioItem[];

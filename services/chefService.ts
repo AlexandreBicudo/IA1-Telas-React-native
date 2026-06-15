@@ -21,6 +21,7 @@ interface ChefRow {
   rating_count: number;
   verification_status: ChefListing['verificationStatus'];
   is_available: boolean;
+  pricing_tiers: ChefListing['pricingTiers'];
   profiles: {
     full_name: string;
     avatar_url: string | null;
@@ -34,7 +35,7 @@ interface ChefRow {
 
 const CHEF_SELECT = `
   id, profile_id, headline, bio, years_experience, daily_rate,
-  rating_avg, rating_count, verification_status, is_available,
+  rating_avg, rating_count, verification_status, is_available, pricing_tiers,
   profiles ( full_name, avatar_url, city, state ),
   chef_specialties ( specialties ( name ) ),
   work_experiences ( id, chef_id, restaurant_name, role, start_date, end_date ),
@@ -57,6 +58,7 @@ function mapRow(row: ChefRow): ChefListing {
     ratingCount: row.rating_count,
     verificationStatus: row.verification_status,
     isAvailable: row.is_available,
+    pricingTiers: row.pricing_tiers ?? null,
     specialties: (row.chef_specialties ?? [])
       .map((cs) => cs.specialties?.name)
       .filter((n): n is string => Boolean(n)),

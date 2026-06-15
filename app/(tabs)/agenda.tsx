@@ -12,24 +12,89 @@ import {
   View,
 } from 'react-native';
 
-import { GSpacing, brandFont, type Palette } from '@/constants/gourmet-theme';
-import { AccentBar, Panel, ScreenGradient } from '@/components/ui-gourmet';
+import { GSpacing, GShadow, brandFont, type Palette } from '@/constants/gourmet-theme';
+import { AccentBar, ScreenGradient } from '@/components/ui-gourmet';
 import { SkeletonBookingCard } from '@/components/skeleton';
 import { useColors } from '@/components/theme-context';
-import { getMyBookings, updateBookingStatus, type MyBookings } from '@/services/bookingService';
+import { getMyBookings, updateBookingStatus, type BookingListItem, type MyBookings } from '@/services/bookingService';
 import type { BookingStatus } from '@/types/database';
+
+// ─── Mapa de status ───────────────────────────────────────────────────────────
 
 function statusUi(c: Palette): Record<BookingStatus, { label: string; color: string }> {
   return {
-    solicitado: { label: 'Solicitado', color: c.warning },
-    confirmado: { label: 'Confirmado', color: c.success },
-    em_andamento: { label: 'Em andamento', color: c.primary },
-    concluido: { label: 'Concluído', color: c.muted },
-    cancelado: { label: 'Cancelado', color: c.danger },
+    solicitado:   { label: 'Pendente',     color: c.warning  },
+    confirmado:   { label: 'Confirmado',   color: c.success  },
+    em_andamento: { label: 'Em andamento', color: c.primary  },
+    concluido:    { label: 'Concluído',    color: c.muted    },
+    cancelado:    { label: 'Cancelado',    color: c.danger   },
   };
 }
 
+// ─── Ordenação e agrupamento ──────────────────────────────────────────────────
+
+const STATUS_ORDER: Record<BookingStatus, number> = {
+  solicitado: 0, confirmado: 1, em_andamento: 2, concluido: 3, cancelado: 4,
+};
+
+interface BookingGroup {
+  key: string;
+  title: string;
+  icon: React.ComponentProps<typeof FontAwesome>['name'];
+  accentColor: (c: Palette) => string;
+  statuses: BookingStatus[];
+}
+
+const GROUPS: BookingGroup[] = [
+  {
+    key: 'action',
+    title: 'REQUER AÇÃO',
+    icon: 'exclamation-circle',
+    accentColor: (c) => c.warning,
+    statuses: ['solicitado'],
+  },
+  {
+    key: 'active',
+    title: 'EM ANDAMENTO',
+    icon: 'clock-o',
+    accentColor: (c) => c.success,
+    statuses: ['confirmado', 'em_andamento'],
+  },
+  {
+    key: 'history',
+    title: 'HISTÓRICO',
+    icon: 'archive',
+    accentColor: (c) => c.hint,
+    statuses: ['concluido', 'cancelado'],
+  },
+];
+
+function sortAndGroup(list: BookingListItem[]): { group: BookingGroup; items: BookingListItem[] }[] {
+  const sorted = [...list].sort((a, b) => {
+    const orderDiff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+    if (orderDiff !== 0) return orderDiff;
+    return new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime();
+  });
+
+  return GROUPS
+    .map((group) => ({
+      group,
+      items: sorted.filter((b) => (group.statuses as string[]).includes(b.status)),
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
+function getInitials(name: string) {
+  return name.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
+
 type Tab = 'client' | 'chef';
+
+// ─── Tela principal ───────────────────────────────────────────────────────────
 
 export default function AgendaScreen() {
   const c = useColors();
@@ -43,103 +108,209 @@ export default function AgendaScreen() {
 
   const load = useCallback(() => {
     setLoading(true);
-    getMyBookings().then((d) => {
-      setData(d);
-      setLoading(false);
-    });
+    getMyBookings().then((d) => { setData(d); setLoading(false); });
   }, []);
 
   useFocusEffect(load);
 
   const act = async (id: string, status: BookingStatus) => {
-    try {
-      await updateBookingStatus(id, status);
-      load();
-    } catch {
-      Alert.alert('Erro', 'Não foi possível atualizar o agendamento.');
-    }
+    const labels: Partial<Record<BookingStatus, string>> = {
+      confirmado: 'Aceitar este agendamento?',
+      cancelado: tab === 'chef' ? 'Recusar este pedido?' : 'Cancelar este agendamento?',
+      concluido: 'Marcar serviço como concluído?',
+    };
+    Alert.alert(labels[status] ?? 'Confirmar?', undefined, [
+      { text: 'Voltar', style: 'cancel' },
+      {
+        text: 'Confirmar',
+        style: status === 'cancelado' ? 'destructive' : 'default',
+        onPress: async () => {
+          try {
+            await updateBookingStatus(id, status);
+            load();
+          } catch {
+            Alert.alert('Erro', 'Não foi possível atualizar o agendamento.');
+          }
+        },
+      },
+    ]);
   };
 
   const list = tab === 'client' ? data.asClient : data.asChef;
+  const grouped = useMemo(() => sortAndGroup(list), [list]);
+
+  // Count de itens pendentes para os badges das abas
+  const pendingClient = data.asClient.filter((b) => b.status === 'solicitado').length;
+  const pendingChef   = data.asChef.filter((b) => b.status === 'solicitado').length;
 
   return (
     <ScreenGradient>
       <AccentBar />
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>Meus agendamentos</Text>
-        <Text style={styles.subtitle}>Acompanhe os serviços contratados e recebidos.</Text>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <Text style={styles.title}>Minha agenda</Text>
+        <Text style={styles.subtitle}>Serviços contratados e pedidos recebidos.</Text>
 
+        {/* ─── Seletor de aba ─── */}
         <View style={styles.segment}>
           <TouchableOpacity
-            style={[styles.segmentBtn, tab === 'client' && styles.segmentBtnActive]}
+            style={[styles.segBtn, tab === 'client' && styles.segBtnActive]}
             onPress={() => setTab('client')}
             activeOpacity={0.8}
           >
-            <Text style={[styles.segmentText, tab === 'client' && { color: c.onPrimary }]}>Contratei</Text>
+            <Text style={[styles.segText, tab === 'client' && styles.segTextActive]}>Contratei</Text>
+            {pendingClient > 0 && (
+              <View style={[styles.badge, tab === 'client' ? styles.badgeActive : styles.badgeInactive]}>
+                <Text style={[styles.badgeText, tab === 'client' && { color: '#fff' }]}>{pendingClient}</Text>
+              </View>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.segmentBtn, tab === 'chef' && styles.segmentBtnActive]}
+            style={[styles.segBtn, tab === 'chef' && styles.segBtnActive]}
             onPress={() => setTab('chef')}
             activeOpacity={0.8}
           >
-            <Text style={[styles.segmentText, tab === 'chef' && { color: c.onPrimary }]}>Recebi (como chef)</Text>
+            <Text style={[styles.segText, tab === 'chef' && styles.segTextActive]}>Como chef</Text>
+            {pendingChef > 0 && (
+              <View style={[styles.badge, tab === 'chef' ? styles.badgeActive : styles.badgeInactive]}>
+                <Text style={[styles.badgeText, tab === 'chef' && { color: '#fff' }]}>{pendingChef}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
+        {/* ─── Conteúdo ─── */}
         {loading ? (
           [1, 2, 3].map((n) => <SkeletonBookingCard key={n} />)
         ) : list.length === 0 ? (
           <View style={styles.emptyWrap}>
-            <FontAwesome name="calendar-o" size={32} color={c.hint} />
-            <Text style={styles.empty}>
+            <View style={styles.emptyIcon}>
+              <FontAwesome name="calendar-o" size={28} color={c.hint} />
+            </View>
+            <Text style={styles.emptyTitle}>
+              {tab === 'client' ? 'Nenhum serviço contratado' : 'Nenhum pedido recebido'}
+            </Text>
+            <Text style={styles.emptySub}>
               {tab === 'client'
-                ? 'Você ainda não contratou nenhum serviço. Encontre um chef no catálogo!'
-                : 'Você ainda não recebeu pedidos de agendamento.'}
+                ? 'Encontre um chef no catálogo e faça seu primeiro agendamento.'
+                : 'Quando clientes solicitarem seu serviço, eles aparecerão aqui.'}
             </Text>
           </View>
         ) : (
-          list.map((b) => (
-            <TouchableOpacity
-              key={b.id}
-              activeOpacity={0.85}
-              onPress={() => router.push({ pathname: '/agendamento/[id]', params: { id: b.id, role: tab === 'client' ? 'client' : 'chef' } } as any as Href)}
-            >
-            <Panel style={styles.card}>
-              <View style={styles.cardTop}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.counterpartLabel}>{tab === 'client' ? 'Chef' : 'Cliente'}</Text>
-                  <Text style={styles.counterpart}>{tab === 'client' ? b.chefName : b.clientName}</Text>
-                </View>
-                <View style={[styles.statusPill, { borderColor: STATUS[b.status].color }]}>
-                  <Text style={[styles.statusText, { color: STATUS[b.status].color }]}>{STATUS[b.status].label}</Text>
+          grouped.map(({ group, items }) => (
+            <View key={group.key}>
+              {/* Cabeçalho da seção */}
+              <View style={styles.sectionHead}>
+                <FontAwesome name={group.icon} size={13} color={group.accentColor(c)} />
+                <Text style={[styles.sectionTitle, { color: group.accentColor(c) }]}>
+                  {group.title}
+                </Text>
+                <View style={[styles.sectionBadge, { backgroundColor: group.accentColor(c) + '22' }]}>
+                  <Text style={[styles.sectionBadgeText, { color: group.accentColor(c) }]}>
+                    {items.length}
+                  </Text>
                 </View>
               </View>
 
-              <View style={styles.cardInfo}>
-                <Info styles={styles} c={c} icon="calendar" text={formatDate(b.eventDate)} />
-                <Info styles={styles} c={c} icon="users" text={`${b.guestsCount} pessoas`} />
-                <Info styles={styles} c={c} icon="map-marker" text={b.address} />
-              </View>
+              {/* Cards */}
+              {items.map((b) => {
+                const sv = STATUS[b.status];
+                const counterpart = tab === 'client' ? b.chefName : b.clientName;
+                const roleLabel = tab === 'client' ? 'CHEF' : 'CLIENTE';
+                const isHistory = group.key === 'history';
 
-              <View style={styles.cardFooter}>
-                <Text style={styles.price}>R$ {b.totalPrice.toFixed(0)}</Text>
-                <View style={styles.actions}>
-                  {tab === 'chef' && b.status === 'solicitado' && (
-                    <>
-                      <ActionBtn styles={styles} color={c.danger} label="Recusar" onPress={() => act(b.id, 'cancelado')} />
-                      <ActionBtn styles={styles} color={c.primary} label="Aceitar" onPress={() => act(b.id, 'confirmado')} />
-                    </>
-                  )}
-                  {tab === 'chef' && b.status === 'confirmado' && (
-                    <ActionBtn styles={styles} color={c.primary} label="Concluir" onPress={() => act(b.id, 'concluido')} />
-                  )}
-                  {tab === 'client' && (b.status === 'solicitado' || b.status === 'confirmado') && (
-                    <ActionBtn styles={styles} color={c.danger} label="Cancelar" onPress={() => act(b.id, 'cancelado')} />
-                  )}
-                </View>
-              </View>
-            </Panel>
-            </TouchableOpacity>
+                return (
+                  <TouchableOpacity
+                    key={b.id}
+                    activeOpacity={0.85}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/agendamento/[id]',
+                        params: { id: b.id, role: tab === 'client' ? 'client' : 'chef' },
+                      } as any as Href)
+                    }
+                  >
+                    <View style={[styles.card, isHistory && styles.cardHistory, GShadow]}>
+                      {/* Faixa lateral colorida */}
+                      <View style={[styles.cardStrip, { backgroundColor: sv.color }]} />
+
+                      {/* Corpo do card */}
+                      <View style={styles.cardBody}>
+                        {/* Linha superior: avatar + nome + preço */}
+                        <View style={styles.cardHead}>
+                          <View style={[styles.avatar, { backgroundColor: sv.color + '22' }]}>
+                            <Text style={[styles.avatarText, { color: sv.color }]}>
+                              {getInitials(counterpart)}
+                            </Text>
+                          </View>
+                          <View style={styles.nameBlock}>
+                            <Text style={[styles.roleLabel, { color: sv.color }]}>{roleLabel}</Text>
+                            <Text style={styles.personName} numberOfLines={1}>{counterpart}</Text>
+                          </View>
+                          <View style={styles.priceBlock}>
+                            <Text style={[styles.priceText, { color: isHistory ? c.muted : sv.color }]}>
+                              R$ {b.totalPrice.toFixed(0)}
+                            </Text>
+                            <View style={[styles.statusPill, { backgroundColor: sv.color + '20' }]}>
+                              <View style={[styles.statusDot, { backgroundColor: sv.color }]} />
+                              <Text style={[styles.statusPillText, { color: sv.color }]}>{sv.label}</Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        {/* Chips de informação */}
+                        <View style={styles.chips}>
+                          <InfoChip icon="calendar-o" text={formatDate(b.eventDate)} c={c} styles={styles} />
+                          <InfoChip icon="users" text={`${b.guestsCount} pess.`} c={c} styles={styles} />
+                          <InfoChip icon="map-marker" text={b.address.split(',')[0]} c={c} styles={styles} />
+                        </View>
+
+                        {/* Botões de ação contextuais */}
+                        {tab === 'chef' && b.status === 'solicitado' && (
+                          <View style={styles.actRow}>
+                            <TouchableOpacity
+                              style={[styles.btnOutline, { borderColor: c.danger, flex: 1 }]}
+                              onPress={() => act(b.id, 'cancelado')}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={[styles.btnOutlineText, { color: c.danger }]}>Recusar</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.btnSolid, { backgroundColor: c.success, flex: 1.5 }]}
+                              onPress={() => act(b.id, 'confirmado')}
+                              activeOpacity={0.8}
+                            >
+                              <FontAwesome name="check" size={12} color="#fff" />
+                              <Text style={styles.btnSolidText}>Aceitar</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                        {tab === 'chef' && b.status === 'confirmado' && (
+                          <TouchableOpacity
+                            style={[styles.btnSolid, { backgroundColor: c.primary }]}
+                            onPress={() => act(b.id, 'concluido')}
+                            activeOpacity={0.8}
+                          >
+                            <FontAwesome name="check-circle" size={13} color={c.onPrimary} />
+                            <Text style={[styles.btnSolidText, { color: c.onPrimary }]}>Concluir serviço</Text>
+                          </TouchableOpacity>
+                        )}
+                        {tab === 'client' && (b.status === 'solicitado' || b.status === 'confirmado') && (
+                          <TouchableOpacity
+                            style={[styles.btnOutline, { borderColor: c.danger }]}
+                            onPress={() => act(b.id, 'cancelado')}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[styles.btnOutlineText, { color: c.danger }]}>
+                              Cancelar agendamento
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           ))
         )}
       </ScrollView>
@@ -147,78 +318,149 @@ export default function AgendaScreen() {
   );
 }
 
-function Info({
-  styles,
-  c,
-  icon,
-  text,
+// ─── Componentes auxiliares ───────────────────────────────────────────────────
+
+function InfoChip({
+  icon, text, c, styles,
 }: {
-  styles: ReturnType<typeof makeStyles>;
-  c: Palette;
   icon: React.ComponentProps<typeof FontAwesome>['name'];
   text: string;
+  c: Palette;
+  styles: ReturnType<typeof makeStyles>;
 }) {
   return (
-    <View style={styles.infoRow}>
-      <FontAwesome name={icon} size={12} color={c.muted} />
-      <Text style={styles.infoText}>{text}</Text>
+    <View style={styles.chip}>
+      <FontAwesome name={icon} size={11} color={c.hint} />
+      <Text style={styles.chipText} numberOfLines={1}>{text}</Text>
     </View>
   );
 }
 
-function ActionBtn({
-  styles,
-  color,
-  label,
-  onPress,
-}: {
-  styles: ReturnType<typeof makeStyles>;
-  color: string;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity style={[styles.actionBtn, { borderColor: color }]} onPress={onPress} activeOpacity={0.8}>
-      <Text style={[styles.actionBtnText, { color }]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+// ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const makeStyles = (c: Palette) =>
   StyleSheet.create({
-    scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 40, paddingTop: 24 },
+    scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 48, paddingTop: 20 },
+
     title: { fontSize: 26, fontWeight: '700', color: c.cream, fontFamily: brandFont },
-    subtitle: { fontSize: 14, color: c.muted, marginTop: 4, marginBottom: 20 },
+    subtitle: { fontSize: 13, color: c.muted, marginTop: 4, marginBottom: 20 },
+
+    // Seletor de aba
     segment: {
       flexDirection: 'row',
       backgroundColor: c.card,
       borderWidth: 1,
       borderColor: c.border,
-      borderRadius: 10,
+      borderRadius: 12,
       padding: 4,
-      marginBottom: 22,
+      marginBottom: 24,
+      gap: 4,
     },
-    segmentBtn: { flex: 1, paddingVertical: 10, borderRadius: 7, alignItems: 'center' },
-    segmentBtnActive: { backgroundColor: c.primary },
-    segmentText: { fontSize: 13, fontWeight: '600', color: c.muted },
-    emptyWrap: { alignItems: 'center', marginTop: 50, gap: 12, paddingHorizontal: 20 },
-    empty: { textAlign: 'center', color: c.muted, fontSize: 14, lineHeight: 20 },
-    card: { padding: 16, marginBottom: 14 },
-    cardTop: { flexDirection: 'row', alignItems: 'flex-start' },
-    counterpartLabel: { fontSize: 10, color: c.primary, letterSpacing: 2, fontWeight: '600', textTransform: 'uppercase' },
-    counterpart: { fontSize: 17, fontWeight: '700', color: c.cream, marginTop: 2 },
-    statusPill: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-    statusText: { fontSize: 11, fontWeight: '600' },
-    cardInfo: { marginTop: 12, gap: 6 },
-    infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    infoText: { fontSize: 13, color: c.cream },
-    cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
-    price: { fontSize: 16, fontWeight: '700', color: c.primary },
-    actions: { flexDirection: 'row', gap: 8 },
-    actionBtn: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-    actionBtnText: { fontSize: 13, fontWeight: '600' },
+    segBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 10,
+      borderRadius: 9,
+      gap: 6,
+    },
+    segBtnActive: { backgroundColor: c.primary },
+    segText: { fontSize: 13, fontWeight: '600', color: c.muted },
+    segTextActive: { color: c.onPrimary },
+    badge: { borderRadius: 20, paddingHorizontal: 7, paddingVertical: 1 },
+    badgeActive: { backgroundColor: 'rgba(255,255,255,0.25)' },
+    badgeInactive: { backgroundColor: c.warning + '28' },
+    badgeText: { fontSize: 11, fontWeight: '700', color: c.warning },
+
+    // Empty state
+    emptyWrap: { alignItems: 'center', marginTop: 48, gap: 14, paddingHorizontal: 12 },
+    emptyIcon: {
+      width: 64, height: 64, borderRadius: 32, backgroundColor: c.card,
+      alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.border,
+    },
+    emptyTitle: { fontSize: 17, fontWeight: '700', color: c.cream, textAlign: 'center' },
+    emptySub: { fontSize: 13, color: c.muted, textAlign: 'center', lineHeight: 20 },
+
+    // Cabeçalho de seção
+    sectionHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      marginBottom: 10,
+      marginTop: 4,
+    },
+    sectionTitle: {
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.5,
+    },
+    sectionBadge: {
+      borderRadius: 20,
+      paddingHorizontal: 7,
+      paddingVertical: 1,
+      marginLeft: 2,
+    },
+    sectionBadgeText: { fontSize: 11, fontWeight: '700' },
+
+    // Card
+    card: {
+      flexDirection: 'row',
+      backgroundColor: c.surface,
+      borderRadius: GSpacing.radius,
+      borderWidth: 1,
+      borderColor: c.border,
+      marginBottom: 12,
+      overflow: 'hidden',
+    },
+    cardHistory: { opacity: 0.65 },
+    cardStrip: { width: 4 },
+    cardBody: { flex: 1, padding: 14 },
+
+    // Cabeçalho do card
+    cardHead: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      marginBottom: 11,
+    },
+    avatar: {
+      width: 38, height: 38, borderRadius: 19,
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    },
+    avatarText: { fontSize: 13, fontWeight: '700', fontFamily: brandFont },
+    nameBlock: { flex: 1, minWidth: 0 },
+    roleLabel: { fontSize: 10, letterSpacing: 1.5, fontWeight: '600' },
+    personName: { fontSize: 15, fontWeight: '700', color: c.cream, marginTop: 2 },
+    priceBlock: { alignItems: 'flex-end', gap: 4, flexShrink: 0 },
+    priceText: { fontSize: 17, fontWeight: '700', fontFamily: brandFont },
+    statusPill: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
+    },
+    statusDot: { width: 6, height: 6, borderRadius: 3 },
+    statusPillText: { fontSize: 11, fontWeight: '600' },
+
+    // Chips de info
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+    chip: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      backgroundColor: c.card, borderRadius: 6,
+      paddingHorizontal: 9, paddingVertical: 5,
+      maxWidth: 160,
+    },
+    chipText: { fontSize: 12, color: c.muted, flexShrink: 1 },
+
+    // Botões
+    actRow: { flexDirection: 'row', gap: 8 },
+    btnSolid: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+      borderRadius: 9, paddingVertical: 10,
+    },
+    btnSolidText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+    btnOutline: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1, borderRadius: 9, paddingVertical: 9,
+    },
+    btnOutlineText: { fontSize: 13, fontWeight: '600' },
   });

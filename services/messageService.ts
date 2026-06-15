@@ -46,7 +46,19 @@ export async function getOrCreateConversation(bookingId: string): Promise<string
     .insert({ client_id: booking.client_id, chef_id: booking.chef_id, booking_id: bookingId })
     .select('id')
     .single();
-  if (error) throw error;
+
+  if (error) {
+    // Se falhou por conflito (constraint), tenta buscar a conversa que já existe
+    if (error.code === '23505') {
+      const { data: retry } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('booking_id', bookingId)
+        .maybeSingle();
+      if (retry) return retry.id;
+    }
+    throw error;
+  }
   return created.id;
 }
 

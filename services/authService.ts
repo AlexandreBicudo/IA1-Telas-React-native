@@ -73,6 +73,42 @@ export async function getCurrentSession() {
   return data.session;
 }
 
+/**
+ * Altera o e-mail do usuário logado.
+ * Requer a senha atual para verificar a identidade antes da mudança.
+ */
+export async function updateEmail(newEmail: string, currentPassword: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user?.email) throw new Error('Sessão expirada. Faça login novamente.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) throw new Error('Formato de e-mail inválido.');
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: auth.user.email,
+    password: currentPassword,
+  });
+  if (signInError) throw new Error('Senha atual incorreta.');
+  const { error } = await supabase.auth.updateUser({ email: newEmail });
+  if (error) throw error;
+}
+
+/**
+ * Altera a senha do usuário logado.
+ * Requer a senha atual antes de aceitar a nova.
+ */
+export async function updatePassword(currentPassword: string, newPassword: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  if (newPassword.length < 6) throw new Error('A nova senha deve ter pelo menos 6 caracteres.');
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user?.email) throw new Error('Sessão expirada. Faça login novamente.');
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: auth.user.email,
+    password: currentPassword,
+  });
+  if (signInError) throw new Error('Senha atual incorreta.');
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
+
 /** Traduz os erros mais comuns do Supabase Auth para mensagens em português. */
 export function authErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);

@@ -1,35 +1,33 @@
 /**
  * Notificações push via Expo Push API.
  *
- * Fluxo:
- *  1. Ao abrir o app, registerAndSaveToken() pede permissão e salva o token em profiles.
- *  2. Ao criar ou atualizar um agendamento, sendPushToToken() notifica a outra parte.
- *
- * NOTA: getExpoPushTokenAsync precisa do projectId do EAS.
- * Sem ele, o token não é gerado mas o app não quebra — as notificações
- * simplesmente não chegam até que o APK seja gerado com EAS.
+ * ATENÇÃO: push notifications NÃO funcionam no Expo Go a partir do SDK 53.
+ * Funcionam normalmente no APK gerado pelo EAS Build.
+ * Em Expo Go, todas as funções retornam silenciosamente.
  */
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Expo Go (storeClient) não suporta push — evita o erro ao importar expo-notifications
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
 /** Pede permissão e salva o Expo Push Token no perfil do usuário logado. */
 export async function registerAndSaveToken(): Promise<void> {
+  if (isExpoGo || !Device.isDevice) return;
   try {
-    if (!Device.isDevice) return; // emuladores não recebem push
+    // Importação dinâmica: só carrega o módulo fora do Expo Go
+    const Notifications = await import('expo-notifications');
+
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
 
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
@@ -57,13 +55,13 @@ export async function registerAndSaveToken(): Promise<void> {
 
     await supabase.from('profiles').update({ push_token: token }).eq('id', auth.user.id);
   } catch {
-    // Falha silenciosa — não impede o funcionamento do app
+    // Falha silenciosa
   }
 }
 
 /** Envia notificação push via Expo Push API (chamada HTTP direta, sem backend). */
 export async function sendPushToToken(token: string, title: string, body: string): Promise<void> {
-  if (!token) return;
+  if (!token || isExpoGo) return;
   try {
     await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
@@ -77,14 +75,14 @@ export async function sendPushToToken(token: string, title: string, body: string
 
 /** Busca o push_token de um usuário pelo profiles.id. */
 export async function getPushToken(profileId: string): Promise<string | null> {
-  if (!isSupabaseConfigured) return null;
+  if (!isSupabaseConfigured || isExpoGo) return null;
   const { data } = await supabase.from('profiles').select('push_token').eq('id', profileId).maybeSingle();
   return data?.push_token ?? null;
 }
 
 /** Busca o push_token do chef pelo chef_profiles.id. */
 export async function getChefPushToken(chefProfilesId: string): Promise<string | null> {
-  if (!isSupabaseConfigured) return null;
+  if (!isSupabaseConfigured || isExpoGo) return null;
   const { data } = await supabase
     .from('chef_profiles')
     .select('profile_id')
