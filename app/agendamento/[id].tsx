@@ -284,7 +284,8 @@ export default function AgendamentoDetailScreen() {
           {/* Detalhes do agendamento */}
           <Panel style={styles.card}>
             <Text style={styles.sectionLabel}>DETALHES DO SERVIÇO</Text>
-            <DetailRow icon="calendar" label="DATA" value={fmtDate(booking.eventDate)} c={c} styles={styles} />
+            <DetailRow icon="file-text-o" label="CONTRATO CRIADO EM" value={fmtDateTime(booking.contractDate)} c={c} styles={styles} />
+            <DetailRow icon="calendar" label="DATA DO EVENTO" value={fmtDate(booking.eventDate)} c={c} styles={styles} />
             <DetailRow icon="cutlery" label="TIPO" value={booking.serviceType === 'diaria' ? 'Diária' : 'Evento especial'} c={c} styles={styles} />
             <DetailRow icon="users" label="CONVIDADOS" value={`${booking.guestsCount} pessoa${booking.guestsCount !== 1 ? 's' : ''}`} c={c} styles={styles} />
             <DetailRow icon="map-marker" label="LOCAL" value={booking.address} c={c} styles={styles} />
@@ -412,9 +413,21 @@ function ActionBtn({ label, color, onPress, styles }: { label: string; color: st
   );
 }
 
+/** Formata uma data sem deslocamento de fuso — lê YYYY-MM-DD diretamente. */
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+  });
 }
+
+/** Formata data + hora a partir de um ISO completo (usa hora local do dispositivo). */
+function fmtDateTime(iso: string) {
+  const dt = new Date(iso);
+  return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    + ' às ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
