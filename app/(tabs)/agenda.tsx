@@ -370,7 +370,6 @@ export default function AgendaScreen() {
               styles={styles} c={c}
               title="Contratei um chef"
               subtitle="Serviços que você solicitou a chefs profissionais"
-              badge={pendingClient}
               borderColor={c.primary}
               iconBg={c.primary + '15'}
               illustration={<ClientIllustration primary={c.primary} success={c.success} />}
@@ -380,7 +379,6 @@ export default function AgendaScreen() {
               styles={styles} c={c}
               title="Sou o chef"
               subtitle="Pedidos recebidos e serviços que você vai executar"
-              badge={pendingChef}
               borderColor={c.success}
               iconBg={c.success + '15'}
               illustration={<ChefIllustration success={c.success} primary={c.primary} />}

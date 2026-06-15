@@ -125,6 +125,27 @@ export async function notifyChefNewBooking(chefProfilesId: string, clientName: s
   );
 }
 
+/** Notifica o chef quando o cliente cancela um contrato. */
+export async function notifyChefBookingCancelled(chefId: string, clientName: string, eventDate: string, bookingId: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+
+  const { data } = await supabase
+    .from('chef_profiles')
+    .select('profile_id')
+    .eq('id', chefId)
+    .maybeSingle();
+  if (!data?.profile_id) return;
+
+  const dateStr = new Date(eventDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  await notifyUser(
+    data.profile_id,
+    'pedido_cancelado',
+    'Contrato cancelado',
+    `${clientName} cancelou o contrato para ${dateStr}.`,
+    bookingId,
+  );
+}
+
 /** Notifica o cliente sobre mudança de status do pedido. */
 export async function notifyClientStatusChange(
   clientProfileId: string,

@@ -35,6 +35,14 @@ export interface ChefProfileEdit {
 
 export type { PricingTier };
 
+export interface ExperienceEdit {
+  id?: string;
+  restaurant_name: string;
+  role: string;
+  start_date?: string;   // ano em 4 dígitos, ex: '2018'
+  end_date?: string | null; // ano em 4 dígitos ou null = atual
+}
+
 /** Dados da conta logada (ou mock em modo offline). */
 export async function getMyAccount(): Promise<MyAccount | null> {
   if (!isSupabaseConfigured) {
@@ -172,6 +180,23 @@ export async function addPortfolioItem(chefId: string, imageUrl: string, title: 
 export async function removePortfolioItem(id: string): Promise<void> {
   if (!isSupabaseConfigured) return;
   const { error } = await supabase.from('portfolio_items').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/** Substitui todas as experiências do chef (delete + insert). */
+export async function saveExperiences(chefId: string, experiences: ExperienceEdit[]): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  await supabase.from('work_experiences').delete().eq('chef_id', chefId);
+  const valid = experiences.filter((e) => e.restaurant_name.trim() && e.role.trim());
+  if (valid.length === 0) return;
+  const rows = valid.map((e) => ({
+    chef_id: chefId,
+    restaurant_name: e.restaurant_name.trim(),
+    role: e.role.trim(),
+    start_date: e.start_date ? `${e.start_date}-01-01` : null,
+    end_date: e.end_date ? `${e.end_date}-01-01` : null,
+  }));
+  const { error } = await supabase.from('work_experiences').insert(rows);
   if (error) throw error;
 }
 

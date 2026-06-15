@@ -2,13 +2,10 @@ import { FontAwesome } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -16,8 +13,7 @@ import {
 import { GSpacing, GShadow, brandFont, type Palette } from '@/constants/gourmet-theme';
 import { AccentBar, ScreenGradient } from '@/components/ui-gourmet';
 import { useColors } from '@/components/theme-context';
-import { getChefEarnings, type ChefEarningsSummary } from '@/services/bookingService';
-import { getMyReceivedReviews, respondToReview, type Review } from '@/services/reviewService';
+import { getChefEarnings, getMyBookings, type ChefEarningsSummary, type BookingListItem } from '@/services/bookingService';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -82,6 +78,13 @@ function BarChart({ data, c }: { data: { label: string; value: number }[]; c: Pa
 
 // ─── Tela principal ───────────────────────────────────────────────────────────
 
+type ChartRange = '7d' | '6m' | '12m';
+const RANGE_OPTS: { key: ChartRange; label: string; title: string }[] = [
+  { key: '7d',  label: 'Semana',  title: 'ÚLTIMOS 7 DIAS' },
+  { key: '6m',  label: '6 Meses', title: 'ÚLTIMOS 6 MESES' },
+  { key: '12m', label: 'Ano',     title: 'ÚLTIMOS 12 MESES' },
+];
+
 export default function CarteiraScreen() {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -89,38 +92,22 @@ export default function CarteiraScreen() {
   const [data, setData] = useState<ChefEarningsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [notChef, setNotChef] = useState(false);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [replyText, setReplyText] = useState<Record<string, string>>({});
-  const [sendingReply, setSendingReply] = useState<string | null>(null);
-  const [showReplyFor, setShowReplyFor] = useState<string | null>(null);
+  const [upcomingJobs, setUpcomingJobs] = useState<BookingListItem[]>([]);
+  const [chartRange, setChartRange] = useState<ChartRange>('6m');
 
   const load = useCallback(() => {
     setLoading(true);
-    Promise.all([getChefEarnings(), getMyReceivedReviews()]).then(([d, rv]) => {
+    Promise.all([getChefEarnings(), getMyBookings()]).then(([d, bookings]) => {
       if (d === null) setNotChef(true);
       else setData(d);
-      setReviews(rv);
+      const upcoming = bookings.asChef
+        .filter((b) => b.status === 'confirmado' || b.status === 'em_andamento')
+        .sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime())
+        .slice(0, 5);
+      setUpcomingJobs(upcoming);
       setLoading(false);
     });
   }, []);
-
-  const handleSendReply = async (reviewId: string) => {
-    const text = replyText[reviewId]?.trim();
-    if (!text) return;
-    try {
-      setSendingReply(reviewId);
-      await respondToReview(reviewId, text);
-      setReviews((prev) =>
-        prev.map((r) => r.id === reviewId ? { ...r, chefResponse: text, chefResponseAt: new Date().toISOString() } : r)
-      );
-      setReplyText((prev) => ({ ...prev, [reviewId]: '' }));
-      setShowReplyFor(null);
-    } catch {
-      Alert.alert('Erro', 'Não foi possível enviar a resposta.');
-    } finally {
-      setSendingReply(null);
-    }
-  };
 
   useFocusEffect(load);
 
@@ -191,9 +178,33 @@ export default function CarteiraScreen() {
             {/* ── Gráfico de barras ── */}
             <View style={[styles.section, GShadow]}>
               <View style={styles.sectionHead}>
-                <Text style={styles.sectionTitle}>ÚLTIMOS 6 MESES</Text>
+                <Text style={styles.sectionTitle}>
+                  {RANGE_OPTS.find((o) => o.key === chartRange)?.title}
+                </Text>
               </View>
-              <BarChart data={data.monthlyData} c={c} />
+              {/* Seletor de período */}
+              <View style={styles.rangeRow}>
+                {RANGE_OPTS.map((o) => (
+                  <TouchableOpacity
+                    key={o.key}
+                    style={[styles.rangeBtn, chartRange === o.key && { backgroundColor: c.primary, borderColor: c.primary }]}
+                    onPress={() => setChartRange(o.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.rangeBtnText, chartRange === o.key && { color: '#fff' }]}>
+                      {o.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <BarChart
+                data={
+                  chartRange === '7d' ? data.weeklyData
+                  : chartRange === '12m' ? data.yearlyData
+                  : data.monthlyData
+                }
+                c={c}
+              />
             </View>
 
             {/* ── Trabalhos recentes ── */}
@@ -238,76 +249,51 @@ export default function CarteiraScreen() {
               <Text style={styles.totalJobs}>{data.completedJobs} serviços</Text>
             </View>
 
-            {/* ── Avaliações recebidas ── */}
+            {/* ── Próximos serviços ── */}
             <View style={[styles.section, GShadow]}>
               <View style={styles.sectionHead}>
-                <Text style={styles.sectionTitle}>AVALIAÇÕES RECEBIDAS</Text>
+                <Text style={styles.sectionTitle}>PRÓXIMOS SERVIÇOS</Text>
+                {upcomingJobs.length > 0 && (
+                  <View style={[styles.upcomingBadge, { backgroundColor: c.success + '20' }]}>
+                    <Text style={[styles.upcomingBadgeText, { color: c.success }]}>
+                      {upcomingJobs.length} agendado{upcomingJobs.length > 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                )}
               </View>
-              {reviews.length === 0 ? (
-                <Text style={styles.reviewEmpty}>Nenhuma avaliação ainda.</Text>
+              {upcomingJobs.length === 0 ? (
+                <View style={styles.upcomingEmpty}>
+                  <FontAwesome name="calendar-o" size={24} color={c.hint} />
+                  <Text style={styles.upcomingEmptyText}>Nenhum serviço agendado no momento.</Text>
+                  <Text style={styles.upcomingEmptyHint}>Novos contratos confirmados aparecerão aqui.</Text>
+                </View>
               ) : (
-                reviews.map((r) => (
-                  <View key={r.id} style={styles.reviewCard}>
-                    <View style={styles.reviewHeader}>
-                      <View style={styles.reviewAvatar}>
-                        <Text style={styles.reviewAvatarText}>{getInitials(r.reviewerName)}</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.reviewerName}>{r.reviewerName}</Text>
-                        <Text style={styles.reviewDate}>
-                          {new Date(r.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                upcomingJobs.map((job, i) => {
+                  const isActive = job.status === 'em_andamento';
+                  const statusColor = isActive ? c.primary : c.success;
+                  return (
+                    <View key={job.id} style={[styles.upcomingRow, i > 0 && styles.upcomingRowBorder]}>
+                      <View style={[styles.upcomingDateBox, { backgroundColor: statusColor + '15' }]}>
+                        <Text style={[styles.upcomingDay, { color: statusColor }]}>
+                          {new Date(job.eventDate).toLocaleDateString('pt-BR', { day: '2-digit' })}
+                        </Text>
+                        <Text style={[styles.upcomingMonth, { color: statusColor }]}>
+                          {new Date(job.eventDate).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}
                         </Text>
                       </View>
-                      <StarRow rating={r.rating} c={c} />
-                    </View>
-                    {r.comment ? (
-                      <Text style={styles.reviewComment}>"{r.comment}"</Text>
-                    ) : null}
-
-                    {/* Resposta existente */}
-                    {r.chefResponse ? (
-                      <View style={styles.responseBox}>
-                        <View style={styles.responseHeader}>
-                          <FontAwesome name="cutlery" size={11} color={c.primary} />
-                          <Text style={styles.responseLabel}>Sua resposta</Text>
+                      <View style={styles.upcomingInfo}>
+                        <Text style={styles.upcomingClient} numberOfLines={1}>{job.clientName}</Text>
+                        <Text style={styles.upcomingAddr} numberOfLines={1}>{job.address.split(',')[0]}</Text>
+                        <View style={[styles.upcomingStatus, { backgroundColor: statusColor + '15' }]}>
+                          <Text style={[styles.upcomingStatusText, { color: statusColor }]}>
+                            {isActive ? 'Em andamento' : 'Confirmado'}
+                          </Text>
                         </View>
-                        <Text style={styles.responseText}>{r.chefResponse}</Text>
-                        <TouchableOpacity onPress={() => setShowReplyFor(showReplyFor === r.id ? null : r.id)} style={styles.editResponseBtn}>
-                          <Text style={styles.editResponseText}>Editar resposta</Text>
-                        </TouchableOpacity>
                       </View>
-                    ) : (
-                      <TouchableOpacity style={styles.replyBtn} onPress={() => setShowReplyFor(showReplyFor === r.id ? null : r.id)}>
-                        <FontAwesome name="reply" size={11} color={c.primary} />
-                        <Text style={styles.replyBtnText}>Responder avaliação</Text>
-                      </TouchableOpacity>
-                    )}
-
-                    {/* Input de resposta */}
-                    {showReplyFor === r.id && (
-                      <View style={styles.replyInputWrap}>
-                        <TextInput
-                          style={styles.replyInput}
-                          placeholder="Escreva sua resposta..."
-                          placeholderTextColor={c.hint}
-                          value={replyText[r.id] ?? (r.chefResponse ?? '')}
-                          onChangeText={(t) => setReplyText((prev) => ({ ...prev, [r.id]: t }))}
-                          multiline
-                          textAlignVertical="top"
-                        />
-                        <TouchableOpacity
-                          style={[styles.replySendBtn, sendingReply === r.id && { opacity: 0.6 }]}
-                          onPress={() => handleSendReply(r.id)}
-                          disabled={sendingReply === r.id}
-                        >
-                          {sendingReply === r.id
-                            ? <ActivityIndicator size="small" color="#fff" />
-                            : <><FontAwesome name="send" size={13} color="#fff" /><Text style={styles.replySendText}>Enviar</Text></>}
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                ))
+                      <Text style={styles.upcomingAmount}>+R$ {job.totalPrice.toFixed(0)}</Text>
+                    </View>
+                  );
+                })
               )}
             </View>
           </>
@@ -334,17 +320,6 @@ function StatPill({
       <FontAwesome name={icon} size={14} color={accent ?? c.primary} />
       <Text style={[styles.statValue, accent ? { color: accent } : {}]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function StarRow({ rating, c }: { rating: number; c: Palette }) {
-  return (
-    <View style={{ flexDirection: 'row', gap: 2 }}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <FontAwesome key={i} name={i <= rating ? 'star' : 'star-o'} size={13}
-          color={i <= rating ? c.primary : c.hint} />
-      ))}
     </View>
   );
 }
@@ -412,8 +387,16 @@ const makeStyles = (c: Palette) =>
       padding: 16,
       marginBottom: 14,
     },
-    sectionHead: { marginBottom: 14 },
+    sectionHead: { marginBottom: 10 },
     sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: c.muted },
+
+    // Range selector
+    rangeRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
+    rangeBtn: {
+      flex: 1, paddingVertical: 6, borderRadius: 8,
+      borderWidth: 1, borderColor: c.border, alignItems: 'center',
+    },
+    rangeBtnText: { fontSize: 12, fontWeight: '600', color: c.muted },
 
     // Job rows
     jobRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
@@ -445,51 +428,26 @@ const makeStyles = (c: Palette) =>
     totalValue: { fontSize: 22, fontWeight: '700', color: c.primary, fontFamily: brandFont, marginTop: 2 },
     totalJobs: { fontSize: 13, color: c.muted, fontWeight: '600' },
 
-    // Avaliações na carteira
-    reviewCard: {
-      backgroundColor: c.dark,
-      borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: 12,
-      padding: 14,
-      marginBottom: 10,
+    // Próximos serviços
+    upcomingBadge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+    upcomingBadgeText: { fontSize: 11, fontWeight: '700' },
+    upcomingEmpty: { alignItems: 'center', gap: 8, paddingVertical: 16 },
+    upcomingEmptyText: { fontSize: 14, color: c.cream, fontWeight: '600', textAlign: 'center' },
+    upcomingEmptyHint: { fontSize: 12, color: c.hint, textAlign: 'center' },
+    upcomingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+    upcomingRowBorder: { borderTopWidth: 1, borderTopColor: c.border },
+    upcomingDateBox: {
+      width: 46, height: 46, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center',
     },
-    reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-    reviewAvatar: {
-      width: 34, height: 34, borderRadius: 17,
-      backgroundColor: c.primary + '22', alignItems: 'center', justifyContent: 'center',
-    },
-    reviewAvatarText: { fontSize: 12, fontWeight: '700', color: c.primary, fontFamily: brandFont },
-    reviewerName: { fontSize: 13, fontWeight: '700', color: c.cream },
-    reviewDate: { fontSize: 11, color: c.muted, marginTop: 1 },
-    reviewComment: { fontSize: 13, color: c.cream, lineHeight: 19, fontStyle: 'italic', marginBottom: 8 },
-    reviewEmpty: { fontSize: 13, color: c.muted, textAlign: 'center', paddingVertical: 8 },
-
-    responseBox: {
-      backgroundColor: c.primary + '10', borderLeftWidth: 3, borderLeftColor: c.primary + '60',
-      borderRadius: 8, padding: 10, marginTop: 4,
-    },
-    responseHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
-    responseLabel: { fontSize: 11, fontWeight: '700', color: c.primary, letterSpacing: 0.5 },
-    responseText: { fontSize: 13, color: c.muted, lineHeight: 19, fontStyle: 'italic' },
-    editResponseBtn: { marginTop: 6 },
-    editResponseText: { fontSize: 12, color: c.primary, fontWeight: '600' },
-
-    replyBtn: {
-      flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 6,
-    },
-    replyBtnText: { fontSize: 12, color: c.primary, fontWeight: '600' },
-    replyInputWrap: { marginTop: 10, gap: 8 },
-    replyInput: {
-      backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10,
-      paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: c.cream,
-      minHeight: 76,
-    },
-    replySendBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-      backgroundColor: c.primary, borderRadius: 9, paddingVertical: 10,
-    },
-    replySendText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+    upcomingDay: { fontSize: 18, fontWeight: '700', fontFamily: brandFont, lineHeight: 20 },
+    upcomingMonth: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+    upcomingInfo: { flex: 1 },
+    upcomingClient: { fontSize: 14, fontWeight: '700', color: c.cream },
+    upcomingAddr: { fontSize: 12, color: c.muted, marginTop: 2 },
+    upcomingStatus: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, marginTop: 4 },
+    upcomingStatusText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
+    upcomingAmount: { fontSize: 16, fontWeight: '700', color: c.success, fontFamily: brandFont },
 
     // Empty
     emptyWrap: { alignItems: 'center', marginTop: 60, gap: 14, paddingHorizontal: 12 },

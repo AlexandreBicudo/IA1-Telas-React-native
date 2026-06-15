@@ -50,24 +50,8 @@ export async function createReview(params: {
     comment: params.comment?.trim() || null,
   });
   if (error) throw error;
-
-  // Atualiza rating médio do chef se ele for o avaliado
-  if (params.chefId) {
-    const { data: chef } = await supabase
-      .from('chef_profiles')
-      .select('rating_avg, rating_count')
-      .eq('id', params.chefId)
-      .single();
-    if (chef) {
-      const oldCount = chef.rating_count ?? 0;
-      const newCount = oldCount + 1;
-      const newAvg = ((Number(chef.rating_avg) * oldCount) + params.rating) / newCount;
-      await supabase
-        .from('chef_profiles')
-        .update({ rating_avg: Number(newAvg.toFixed(1)), rating_count: newCount })
-        .eq('id', params.chefId);
-    }
-  }
+  // rating_avg e rating_count são atualizados automaticamente pelo trigger
+  // fn_refresh_chef_rating (fase-6-migration.sql) com SECURITY DEFINER.
 }
 
 /** Lista avaliações públicas de um chef (para o perfil público). */
