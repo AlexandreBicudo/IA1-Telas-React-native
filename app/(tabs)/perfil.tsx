@@ -16,6 +16,7 @@ import {
 
 import { GSpacing, brandFont, type Palette } from '@/constants/gourmet-theme';
 import { AccentBar, ScreenGradient } from '@/components/ui-gourmet';
+import { NotificationBell } from '@/components/NotificationBell';
 import { useColors, useTheme } from '@/components/theme-context';
 import { authErrorMessage, signOut } from '@/services/authService';
 import { activateChefProfile, getMyAccount, type MyAccount } from '@/services/profileService';
@@ -87,8 +88,13 @@ export default function PerfilScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <AccentBar style={styles.topAccent} />
 
+        <View style={styles.heroHeader}>
+          <View style={{ flex: 1 }} />
+          <NotificationBell />
+        </View>
         <View style={styles.hero}>
           <Avatar uri={account.avatarUrl} name={account.name || 'Usuário'} size={84} c={c} styles={styles} />
+          <Text style={styles.greeting}>{getGreeting(account.name || 'você')}</Text>
           <Text style={styles.name}>{account.name || 'Usuário'}</Text>
           <Text style={styles.email}>{account.email}</Text>
         </View>
@@ -102,7 +108,7 @@ export default function PerfilScreen() {
           icon="user-circle-o"
           title="Editar dados pessoais"
           sub="Nome, e-mail e senha da sua conta."
-          onPress={() => router.push('/editar-perfil')}
+          onPress={() => router.push({ pathname: '/editar-perfil', params: { section: 'conta' } } as any)}
         />
 
         <Text style={styles.sectionTitle}>Contratar serviços</Text>
@@ -117,6 +123,20 @@ export default function PerfilScreen() {
           onPress={() => router.push('/catalogo')}
         />
 
+        {account.hasChefProfile && (
+          <>
+            <Text style={styles.sectionTitle}>Financeiro</Text>
+            <ActionCard
+              styles={styles} c={c}
+              iconBg={c.success + '22'} iconColor={c.success}
+              icon="dollar"
+              title="Minha carteira"
+              sub="Ganhos, histórico financeiro e estatísticas."
+              onPress={() => router.push('/carteira' as any)}
+            />
+          </>
+        )}
+
         <Text style={styles.sectionTitle}>Meu serviço profissional</Text>
         {account.hasChefProfile ? (
           <>
@@ -128,7 +148,7 @@ export default function PerfilScreen() {
               icon="pencil"
               title="Gerenciar meu serviço"
               sub="Especialidades, valor, portfólio e disponibilidade."
-              onPress={() => router.push('/editar-perfil')}
+              onPress={() => router.push({ pathname: '/editar-perfil', params: { section: 'profissional' } } as any)}
             />
             {account.chefId && (
               <ActionCard
@@ -265,6 +285,14 @@ function getInitials(name: string) {
   return name.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 }
 
+function getGreeting(name: string) {
+  const firstName = name.split(' ')[0];
+  const hour = new Date().getHours();
+  if (hour < 12) return `Bom dia, ${firstName}! 👋`;
+  if (hour < 18) return `Boa tarde, ${firstName}! 👋`;
+  return `Boa noite, ${firstName}! 👋`;
+}
+
 const makeStyles = (c: Palette) =>
   StyleSheet.create({
     flex: { flex: 1, backgroundColor: c.dark },
@@ -274,6 +302,7 @@ const makeStyles = (c: Palette) =>
     linkBtnText: { color: c.primary, fontWeight: '600' },
     scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 40 },
     topAccent: { marginHorizontal: -GSpacing.screen, marginBottom: 28 },
+    heroHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
     hero: { alignItems: 'center' },
     avatar: {
       backgroundColor: c.card,
@@ -284,7 +313,8 @@ const makeStyles = (c: Palette) =>
       overflow: 'hidden',
     },
     avatarText: { fontWeight: '700', fontFamily: brandFont },
-    name: { fontSize: 22, fontWeight: '700', color: c.cream, marginTop: 14 },
+    greeting: { fontSize: 13, color: c.primary, fontWeight: '600', marginTop: 14 },
+    name: { fontSize: 22, fontWeight: '700', color: c.cream, marginTop: 4 },
     email: { fontSize: 13, color: c.muted, marginTop: 4 },
     sectionTitle: {
       fontSize: 11,

@@ -32,17 +32,24 @@ export default function TabsLayout() {
         options={{ title: 'Catálogo', tabBarIcon: ({ color, size }) => <FontAwesome name="search" size={size ?? 22} color={color} /> }}
       />
       <Tabs.Screen
+        name="destaques"
+        options={{ title: 'Destaques', tabBarIcon: ({ color, size }) => <FontAwesome name="star" size={size ?? 22} color={color} /> }}
+      />
+      <Tabs.Screen
         name="agenda"
         options={{ title: 'Agenda', tabBarIcon: ({ color, size }) => <FontAwesome name="calendar" size={size ?? 22} color={color} /> }}
       />
       <Tabs.Screen
-        name="chat"
-        options={{ title: 'Chat', tabBarIcon: ({ color, size }) => <FontAwesome name="comments" size={size ?? 22} color={color} /> }}
+        name="historico"
+        options={{ title: 'Histórico', tabBarIcon: ({ color, size }) => <FontAwesome name="history" size={size ?? 22} color={color} /> }}
       />
       <Tabs.Screen
         name="perfil"
         options={{ title: 'Perfil', tabBarIcon: ({ color, size }) => <FontAwesome name="user" size={size ?? 22} color={color} /> }}
       />
+      {/* Telas ocultas — existem no roteador mas fora da tab bar */}
+      <Tabs.Screen name="carteira" options={{ href: null }} />
+      <Tabs.Screen name="chat"     options={{ href: null }} />
     </Tabs>
   );
 }

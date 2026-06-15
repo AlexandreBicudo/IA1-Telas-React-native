@@ -4,7 +4,7 @@
     "slug": "Atividade-Avaliativa-1",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/chef_logo_new.png",
     "scheme": "seuchefe",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -15,10 +15,8 @@
       "package": "com.seuchefegourmet.app",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#0A0A0A",
+        "foregroundImage": "./assets/images/chef_logo_new.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,

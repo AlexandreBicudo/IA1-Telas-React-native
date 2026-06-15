@@ -19,6 +19,7 @@ import {
 import { GShadow } from '@/constants/gourmet-theme';
 import { AccentBar, GoldButton, ScreenGradient } from '@/components/ui-gourmet';
 import { authErrorMessage, signIn } from '@/services/authService';
+import { registerAndSaveToken } from '@/services/notificationService';
 
 const REMEMBERED_EMAIL_KEY = '@seuchefe:rememberedEmail';
 
@@ -62,6 +63,7 @@ export default function LoginScreen() {
       } else {
         await AsyncStorage.removeItem(REMEMBERED_EMAIL_KEY);
       }
+      registerAndSaveToken(); // não bloqueia o login
       router.replace('/catalogo');
     } catch (error) {
       Alert.alert('Erro ao entrar', authErrorMessage(error));

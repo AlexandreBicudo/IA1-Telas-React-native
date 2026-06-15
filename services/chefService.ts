@@ -22,6 +22,8 @@ interface ChefRow {
   verification_status: ChefListing['verificationStatus'];
   is_available: boolean;
   pricing_tiers: ChefListing['pricingTiers'];
+  display_name: string | null;
+  professional_avatar_url: string | null;
   profiles: {
     full_name: string;
     avatar_url: string | null;
@@ -36,6 +38,7 @@ interface ChefRow {
 const CHEF_SELECT = `
   id, profile_id, headline, bio, years_experience, daily_rate,
   rating_avg, rating_count, verification_status, is_available, pricing_tiers,
+  display_name, professional_avatar_url,
   profiles ( full_name, avatar_url, city, state ),
   chef_specialties ( specialties ( name ) ),
   work_experiences ( id, chef_id, restaurant_name, role, start_date, end_date ),
@@ -43,11 +46,16 @@ const CHEF_SELECT = `
 `;
 
 function mapRow(row: ChefRow): ChefListing {
+  const accountName = row.profiles?.full_name ?? 'Chef';
+  const professionalAvatar = row.professional_avatar_url ?? null;
+  const personalAvatar = row.profiles?.avatar_url ?? null;
   return {
     id: row.id,
     profileId: row.profile_id,
-    name: row.profiles?.full_name ?? 'Chef',
-    avatarUrl: row.profiles?.avatar_url ?? null,
+    name: row.display_name?.trim() || accountName,  // vulgo > nome da conta
+    accountName,
+    avatarUrl: professionalAvatar ?? personalAvatar,  // foto profissional > foto pessoal
+    personalAvatarUrl: personalAvatar,
     city: row.profiles?.city ?? null,
     state: row.profiles?.state ?? null,
     headline: row.headline,
