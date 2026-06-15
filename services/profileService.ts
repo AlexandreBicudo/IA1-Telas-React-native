@@ -29,6 +29,8 @@ export interface ChefProfileEdit {
   isAvailable: boolean;
   specialties: string[];
   pricingTiers?: PricingTier[];
+  displayName?: string;          // nome artístico/vulgo (opcional)
+  professionalAvatarUrl?: string; // foto profissional separada
 }
 
 export type { PricingTier };
@@ -108,17 +110,20 @@ export async function activateChefProfile(): Promise<string> {
 export async function updateChefProfile(chefId: string, edit: ChefProfileEdit): Promise<void> {
   if (!isSupabaseConfigured) return;
 
-  const { error } = await supabase
-    .from('chef_profiles')
-    .update({
-      headline: edit.headline,
-      bio: edit.bio,
-      daily_rate: edit.dailyRate,
-      years_experience: edit.yearsExperience,
-      is_available: edit.isAvailable,
-      pricing_tiers: edit.pricingTiers ?? null,
-    })
-    .eq('id', chefId);
+  const patch: Record<string, unknown> = {
+    headline: edit.headline,
+    bio: edit.bio,
+    daily_rate: edit.dailyRate,
+    years_experience: edit.yearsExperience,
+    is_available: edit.isAvailable,
+    pricing_tiers: edit.pricingTiers ?? null,
+    display_name: edit.displayName?.trim() || null,
+  };
+  if (edit.professionalAvatarUrl !== undefined) {
+    patch.professional_avatar_url = edit.professionalAvatarUrl || null;
+  }
+
+  const { error } = await supabase.from('chef_profiles').update(patch).eq('id', chefId);
   if (error) throw error;
 
   // Substitui o conjunto de especialidades

@@ -195,6 +195,15 @@ export default function ChefDetailScreen() {
                 {r.comment ? (
                   <Text style={styles.reviewComment}>"{r.comment}"</Text>
                 ) : null}
+                {r.chefResponse ? (
+                  <View style={styles.chefResponse}>
+                    <View style={styles.chefResponseHeader}>
+                      <FontAwesome name="cutlery" size={11} color={c.primary} />
+                      <Text style={styles.chefResponseLabel}>Resposta do chef</Text>
+                    </View>
+                    <Text style={styles.chefResponseText}>{r.chefResponse}</Text>
+                  </View>
+                ) : null}
               </View>
             ))
           )}
@@ -338,6 +347,18 @@ const makeStyles = (c: Palette) =>
     reviewerName: { fontSize: 14, fontWeight: '700', color: c.cream },
     reviewDate: { fontSize: 11, color: c.muted, marginTop: 1 },
     reviewComment: { fontSize: 13, color: c.cream, lineHeight: 20, fontStyle: 'italic' },
+    chefResponse: {
+      marginTop: 10,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+      borderLeftWidth: 3,
+      borderLeftColor: c.primary + '60',
+      paddingLeft: 10,
+    },
+    chefResponseHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
+    chefResponseLabel: { fontSize: 11, fontWeight: '700', color: c.primary, letterSpacing: 0.5 },
+    chefResponseText: { fontSize: 13, color: c.muted, lineHeight: 19, fontStyle: 'italic' },
 
     cta: { marginTop: 30 },
   });

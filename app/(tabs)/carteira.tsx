@@ -2,10 +2,14 @@ import { FontAwesome } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 
@@ -13,6 +17,7 @@ import { GSpacing, GShadow, brandFont, type Palette } from '@/constants/gourmet-
 import { AccentBar, ScreenGradient } from '@/components/ui-gourmet';
 import { useColors } from '@/components/theme-context';
 import { getChefEarnings, type ChefEarningsSummary } from '@/services/bookingService';
+import { getMyReceivedReviews, respondToReview, type Review } from '@/services/reviewService';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -84,15 +89,38 @@ export default function CarteiraScreen() {
   const [data, setData] = useState<ChefEarningsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [notChef, setNotChef] = useState(false);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [replyText, setReplyText] = useState<Record<string, string>>({});
+  const [sendingReply, setSendingReply] = useState<string | null>(null);
+  const [showReplyFor, setShowReplyFor] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
-    getChefEarnings().then((d) => {
+    Promise.all([getChefEarnings(), getMyReceivedReviews()]).then(([d, rv]) => {
       if (d === null) setNotChef(true);
       else setData(d);
+      setReviews(rv);
       setLoading(false);
     });
   }, []);
+
+  const handleSendReply = async (reviewId: string) => {
+    const text = replyText[reviewId]?.trim();
+    if (!text) return;
+    try {
+      setSendingReply(reviewId);
+      await respondToReview(reviewId, text);
+      setReviews((prev) =>
+        prev.map((r) => r.id === reviewId ? { ...r, chefResponse: text, chefResponseAt: new Date().toISOString() } : r)
+      );
+      setReplyText((prev) => ({ ...prev, [reviewId]: '' }));
+      setShowReplyFor(null);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível enviar a resposta.');
+    } finally {
+      setSendingReply(null);
+    }
+  };
 
   useFocusEffect(load);
 
@@ -209,6 +237,79 @@ export default function CarteiraScreen() {
               </View>
               <Text style={styles.totalJobs}>{data.completedJobs} serviços</Text>
             </View>
+
+            {/* ── Avaliações recebidas ── */}
+            <View style={[styles.section, GShadow]}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle}>AVALIAÇÕES RECEBIDAS</Text>
+              </View>
+              {reviews.length === 0 ? (
+                <Text style={styles.reviewEmpty}>Nenhuma avaliação ainda.</Text>
+              ) : (
+                reviews.map((r) => (
+                  <View key={r.id} style={styles.reviewCard}>
+                    <View style={styles.reviewHeader}>
+                      <View style={styles.reviewAvatar}>
+                        <Text style={styles.reviewAvatarText}>{getInitials(r.reviewerName)}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.reviewerName}>{r.reviewerName}</Text>
+                        <Text style={styles.reviewDate}>
+                          {new Date(r.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </Text>
+                      </View>
+                      <StarRow rating={r.rating} c={c} />
+                    </View>
+                    {r.comment ? (
+                      <Text style={styles.reviewComment}>"{r.comment}"</Text>
+                    ) : null}
+
+                    {/* Resposta existente */}
+                    {r.chefResponse ? (
+                      <View style={styles.responseBox}>
+                        <View style={styles.responseHeader}>
+                          <FontAwesome name="cutlery" size={11} color={c.primary} />
+                          <Text style={styles.responseLabel}>Sua resposta</Text>
+                        </View>
+                        <Text style={styles.responseText}>{r.chefResponse}</Text>
+                        <TouchableOpacity onPress={() => setShowReplyFor(showReplyFor === r.id ? null : r.id)} style={styles.editResponseBtn}>
+                          <Text style={styles.editResponseText}>Editar resposta</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity style={styles.replyBtn} onPress={() => setShowReplyFor(showReplyFor === r.id ? null : r.id)}>
+                        <FontAwesome name="reply" size={11} color={c.primary} />
+                        <Text style={styles.replyBtnText}>Responder avaliação</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Input de resposta */}
+                    {showReplyFor === r.id && (
+                      <View style={styles.replyInputWrap}>
+                        <TextInput
+                          style={styles.replyInput}
+                          placeholder="Escreva sua resposta..."
+                          placeholderTextColor={c.hint}
+                          value={replyText[r.id] ?? (r.chefResponse ?? '')}
+                          onChangeText={(t) => setReplyText((prev) => ({ ...prev, [r.id]: t }))}
+                          multiline
+                          textAlignVertical="top"
+                        />
+                        <TouchableOpacity
+                          style={[styles.replySendBtn, sendingReply === r.id && { opacity: 0.6 }]}
+                          onPress={() => handleSendReply(r.id)}
+                          disabled={sendingReply === r.id}
+                        >
+                          {sendingReply === r.id
+                            ? <ActivityIndicator size="small" color="#fff" />
+                            : <><FontAwesome name="send" size={13} color="#fff" /><Text style={styles.replySendText}>Enviar</Text></>}
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                ))
+              )}
+            </View>
           </>
         ) : null}
       </ScrollView>
@@ -233,6 +334,17 @@ function StatPill({
       <FontAwesome name={icon} size={14} color={accent ?? c.primary} />
       <Text style={[styles.statValue, accent ? { color: accent } : {}]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function StarRow({ rating, c }: { rating: number; c: Palette }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <FontAwesome key={i} name={i <= rating ? 'star' : 'star-o'} size={13}
+          color={i <= rating ? c.primary : c.hint} />
+      ))}
     </View>
   );
 }
@@ -332,6 +444,52 @@ const makeStyles = (c: Palette) =>
     totalLabel: { fontSize: 11, fontWeight: '600', color: c.muted, letterSpacing: 1 },
     totalValue: { fontSize: 22, fontWeight: '700', color: c.primary, fontFamily: brandFont, marginTop: 2 },
     totalJobs: { fontSize: 13, color: c.muted, fontWeight: '600' },
+
+    // Avaliações na carteira
+    reviewCard: {
+      backgroundColor: c.dark,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 10,
+    },
+    reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+    reviewAvatar: {
+      width: 34, height: 34, borderRadius: 17,
+      backgroundColor: c.primary + '22', alignItems: 'center', justifyContent: 'center',
+    },
+    reviewAvatarText: { fontSize: 12, fontWeight: '700', color: c.primary, fontFamily: brandFont },
+    reviewerName: { fontSize: 13, fontWeight: '700', color: c.cream },
+    reviewDate: { fontSize: 11, color: c.muted, marginTop: 1 },
+    reviewComment: { fontSize: 13, color: c.cream, lineHeight: 19, fontStyle: 'italic', marginBottom: 8 },
+    reviewEmpty: { fontSize: 13, color: c.muted, textAlign: 'center', paddingVertical: 8 },
+
+    responseBox: {
+      backgroundColor: c.primary + '10', borderLeftWidth: 3, borderLeftColor: c.primary + '60',
+      borderRadius: 8, padding: 10, marginTop: 4,
+    },
+    responseHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
+    responseLabel: { fontSize: 11, fontWeight: '700', color: c.primary, letterSpacing: 0.5 },
+    responseText: { fontSize: 13, color: c.muted, lineHeight: 19, fontStyle: 'italic' },
+    editResponseBtn: { marginTop: 6 },
+    editResponseText: { fontSize: 12, color: c.primary, fontWeight: '600' },
+
+    replyBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 6,
+    },
+    replyBtnText: { fontSize: 12, color: c.primary, fontWeight: '600' },
+    replyInputWrap: { marginTop: 10, gap: 8 },
+    replyInput: {
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10,
+      paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: c.cream,
+      minHeight: 76,
+    },
+    replySendBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      backgroundColor: c.primary, borderRadius: 9, paddingVertical: 10,
+    },
+    replySendText: { fontSize: 14, fontWeight: '700', color: '#fff' },
 
     // Empty
     emptyWrap: { alignItems: 'center', marginTop: 60, gap: 14, paddingHorizontal: 12 },

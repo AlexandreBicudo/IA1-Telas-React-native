@@ -70,14 +70,18 @@ export interface ChefProfile {
   verification_status: VerificationStatus;
   is_available: boolean;
   pricing_tiers?: PricingTier[] | null;
+  display_name?: string | null;          // nome artístico/vulgo opcional
+  professional_avatar_url?: string | null; // foto profissional separada
 }
 
 /** Forma achatada usada pelo Catálogo e pela tela de Perfil (chef + profile + agregados). */
 export interface ChefListing {
   id: string; // chef_profiles.id
   profileId: string;
-  name: string;
-  avatarUrl?: string | null;
+  name: string;                          // display_name ?? full_name
+  accountName: string;                   // full_name (nome da conta)
+  avatarUrl?: string | null;             // foto profissional (professional_avatar_url ?? avatar pessoal)
+  personalAvatarUrl?: string | null;     // foto pessoal da conta
   city?: string | null;
   state?: string | null;
   headline?: string | null;

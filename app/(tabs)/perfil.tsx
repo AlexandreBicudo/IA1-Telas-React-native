@@ -89,6 +89,7 @@ export default function PerfilScreen() {
 
         <View style={styles.hero}>
           <Avatar uri={account.avatarUrl} name={account.name || 'Usuário'} size={84} c={c} styles={styles} />
+          <Text style={styles.greeting}>{getGreeting(account.name || 'você')}</Text>
           <Text style={styles.name}>{account.name || 'Usuário'}</Text>
           <Text style={styles.email}>{account.email}</Text>
         </View>
@@ -265,6 +266,14 @@ function getInitials(name: string) {
   return name.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 }
 
+function getGreeting(name: string) {
+  const firstName = name.split(' ')[0];
+  const hour = new Date().getHours();
+  if (hour < 12) return `Bom dia, ${firstName}! 👋`;
+  if (hour < 18) return `Boa tarde, ${firstName}! 👋`;
+  return `Boa noite, ${firstName}! 👋`;
+}
+
 const makeStyles = (c: Palette) =>
   StyleSheet.create({
     flex: { flex: 1, backgroundColor: c.dark },
@@ -284,7 +293,8 @@ const makeStyles = (c: Palette) =>
       overflow: 'hidden',
     },
     avatarText: { fontWeight: '700', fontFamily: brandFont },
-    name: { fontSize: 22, fontWeight: '700', color: c.cream, marginTop: 14 },
+    greeting: { fontSize: 13, color: c.primary, fontWeight: '600', marginTop: 14 },
+    name: { fontSize: 22, fontWeight: '700', color: c.cream, marginTop: 4 },
     email: { fontSize: 13, color: c.muted, marginTop: 4 },
     sectionTitle: {
       fontSize: 11,

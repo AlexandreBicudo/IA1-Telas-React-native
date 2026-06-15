@@ -18,7 +18,7 @@ import {
   View,
 } from 'react-native';
 
-import { GSpacing, brandFont, type Palette } from '@/constants/gourmet-theme';
+import { GSpacing, GShadow, brandFont, type Palette } from '@/constants/gourmet-theme';
 import { GoldButton } from '@/components/ui-gourmet';
 import { useColors, useTheme } from '@/components/theme-context';
 import { SPECIALTIES } from '@/constants/specialties';
@@ -34,7 +34,11 @@ import {
   validateChefProfileForActivation,
   type PricingTier,
 } from '@/services/profileService';
-import { pickAndUploadAvatar, pickAndUploadPortfolioPhoto } from '@/services/storageService';
+import {
+  pickAndUploadAvatar,
+  pickAndUploadPortfolioPhoto,
+  pickAndUploadProfessionalAvatar,
+} from '@/services/storageService';
 import type { PortfolioItem } from '@/types/database';
 
 export default function EditarPerfilScreen() {
@@ -43,9 +47,26 @@ export default function EditarPerfilScreen() {
   const { mode } = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
 
-  // — Chef profile
+  // ─── Conta pessoal ────────────────────────────────────────────────────────
+  const [fullName, setFullName] = useState('');
+  const [currentEmail, setCurrentEmail] = useState('');
+  const [personalAvatarUrl, setPersonalAvatarUrl] = useState<string | null>(null);
+
+  const [showEmailChange, setShowEmailChange] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [passwordForEmail, setPasswordForEmail] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
+
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  // ─── Perfil profissional ──────────────────────────────────────────────────
   const [chefId, setChefId] = useState<string | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState('');         // vulgo/nome artístico
+  const [professionalAvatarUrl, setProfessionalAvatarUrl] = useState<string | null>(null);
   const [headline, setHeadline] = useState('');
   const [bio, setBio] = useState('');
   const [dailyRate, setDailyRate] = useState('');
@@ -55,43 +76,36 @@ export default function EditarPerfilScreen() {
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [city, setCity] = useState('');
   const [stateSigla, setStateSigla] = useState('');
-
-  // — Dados pessoais
-  const [fullName, setFullName] = useState('');
-  const [currentEmail, setCurrentEmail] = useState('');
-
-  // — Alterar e-mail
-  const [showEmailChange, setShowEmailChange] = useState(false);
-  const [newEmail, setNewEmail] = useState('');
-  const [passwordForEmail, setPasswordForEmail] = useState('');
-  const [savingEmail, setSavingEmail] = useState(false);
-
-  // — Alterar senha
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [savingPassword, setSavingPassword] = useState(false);
-
-  // — Precificação dinâmica
   const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
+
+  // ─── Modal de faixa de preço ──────────────────────────────────────────────
   const [showAddTier, setShowAddTier] = useState(false);
   const [tierMinDays, setTierMinDays] = useState('');
   const [tierMaxDays, setTierMaxDays] = useState('');
   const [tierRate, setTierRate] = useState('');
 
-  // — Loading / saving
+  // ─── Estado ───────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadingPersonal, setUploadingPersonal] = useState(false);
+  const [uploadingPro, setUploadingPro] = useState(false);
   const [uploadingPortfolio, setUploadingPortfolio] = useState(false);
 
   useEffect(() => {
     let active = true;
     Promise.all([getMyChefProfile(), getMyAccount()]).then(([chef, account]) => {
       if (!active) return;
+      if (account) {
+        setFullName(account.name ?? '');
+        setCurrentEmail(account.email ?? '');
+        setPersonalAvatarUrl(account.avatarUrl ?? null);
+        if (account.city) setCity(account.city);
+        if (account.state) setStateSigla(account.state);
+      }
       if (chef) {
         setChefId(chef.id);
+        setDisplayName((chef as any).displayName ?? '');
+        setProfessionalAvatarUrl((chef as any).professionalAvatarUrl ?? null);
         setHeadline(chef.headline ?? '');
         setBio(chef.bio ?? '');
         setDailyRate(chef.dailyRate ? String(chef.dailyRate) : '');
@@ -101,35 +115,41 @@ export default function EditarPerfilScreen() {
         setPortfolio(chef.portfolio ?? []);
         setPricingTiers(chef.pricingTiers ?? []);
       }
-      if (account) {
-        if (account.avatarUrl) setAvatarUrl(account.avatarUrl);
-        if (account.city) setCity(account.city);
-        if (account.state) setStateSigla(account.state);
-        setFullName(account.name ?? '');
-        setCurrentEmail(account.email ?? '');
-      }
       setLoading(false);
     });
     return () => { active = false; };
   }, []);
 
-  // ─── Foto de perfil ───────────────────────────────────────────────────────
+  // ─── Fotos ────────────────────────────────────────────────────────────────
 
-  const handlePickPhoto = async () => {
+  const handlePickPersonalPhoto = async () => {
     try {
-      setUploadingPhoto(true);
+      setUploadingPersonal(true);
       const url = await pickAndUploadAvatar();
       if (!url) return;
       await updateAvatarUrl(url);
-      setAvatarUrl(url);
+      setPersonalAvatarUrl(url);
     } catch (e) {
       Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível atualizar a foto.');
     } finally {
-      setUploadingPhoto(false);
+      setUploadingPersonal(false);
     }
   };
 
-  // ─── Dados pessoais ───────────────────────────────────────────────────────
+  const handlePickProfessionalPhoto = async () => {
+    try {
+      setUploadingPro(true);
+      const url = await pickAndUploadProfessionalAvatar();
+      if (!url) return;
+      setProfessionalAvatarUrl(url);
+    } catch (e) {
+      Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível atualizar a foto.');
+    } finally {
+      setUploadingPro(false);
+    }
+  };
+
+  // ─── E-mail e senha ───────────────────────────────────────────────────────
 
   const handleUpdateEmail = async () => {
     if (!newEmail.trim()) return Alert.alert('Atenção', 'Informe o novo e-mail.');
@@ -137,45 +157,34 @@ export default function EditarPerfilScreen() {
     try {
       setSavingEmail(true);
       await updateEmail(newEmail.trim(), passwordForEmail);
-      setCurrentEmail(newEmail.trim());
-      setNewEmail('');
-      setPasswordForEmail('');
-      setShowEmailChange(false);
+      setCurrentEmail(newEmail.trim()); setNewEmail(''); setPasswordForEmail(''); setShowEmailChange(false);
       Alert.alert('E-mail atualizado', 'Verifique sua nova caixa de entrada para confirmar a alteração.');
     } catch (e) {
       Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível alterar o e-mail.');
-    } finally {
-      setSavingEmail(false);
-    }
+    } finally { setSavingEmail(false); }
   };
 
   const handleUpdatePassword = async () => {
     if (!currentPassword) return Alert.alert('Atenção', 'Informe sua senha atual.');
-    if (!newPassword) return Alert.alert('Atenção', 'Informe a nova senha.');
-    if (newPassword.length < 6) return Alert.alert('Atenção', 'A nova senha deve ter pelo menos 6 caracteres.');
+    if (!newPassword || newPassword.length < 6) return Alert.alert('Atenção', 'A nova senha deve ter pelo menos 6 caracteres.');
     if (newPassword !== confirmPassword) return Alert.alert('Atenção', 'As senhas não coincidem.');
     try {
       setSavingPassword(true);
       await updatePassword(currentPassword, newPassword);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setShowPasswordChange(false);
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setShowPasswordChange(false);
       Alert.alert('Senha alterada', 'Sua senha foi atualizada com sucesso.');
     } catch (e) {
       Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível alterar a senha.');
-    } finally {
-      setSavingPassword(false);
-    }
+    } finally { setSavingPassword(false); }
   };
 
-  // ─── Visibilidade no catálogo ─────────────────────────────────────────────
+  // ─── Visibilidade ─────────────────────────────────────────────────────────
 
   const handleToggleVisibility = async (val: boolean) => {
     if (val) {
       const missing = validateChefProfileForActivation({
         headline, bio, dailyRate: Number(dailyRate), yearsExperience: Number(yearsExperience),
-        specialties, avatarUrl, city,
+        specialties, avatarUrl: professionalAvatarUrl ?? personalAvatarUrl, city,
       });
       if (missing.length > 0) {
         Alert.alert('Perfil incompleto', `Para aparecer no catálogo, preencha:\n\n• ${missing.join('\n• ')}`);
@@ -188,12 +197,10 @@ export default function EditarPerfilScreen() {
       await updateChefProfile(chefId, {
         headline: headline.trim(), bio: bio.trim(),
         dailyRate: Number(dailyRate) || 0, yearsExperience: Number(yearsExperience) || 0,
-        isAvailable: val, specialties, pricingTiers,
+        isAvailable: val, specialties, pricingTiers, displayName: displayName.trim(),
+        professionalAvatarUrl: professionalAvatarUrl ?? undefined,
       });
-    } catch {
-      setIsAvailable(!val);
-      Alert.alert('Erro', 'Não foi possível atualizar a visibilidade.');
-    }
+    } catch { setIsAvailable(!val); Alert.alert('Erro', 'Não foi possível atualizar a visibilidade.'); }
   };
 
   // ─── Portfólio ────────────────────────────────────────────────────────────
@@ -209,26 +216,21 @@ export default function EditarPerfilScreen() {
       setPortfolio((prev) => [...prev, { id: `local-${Date.now()}`, chef_id: chefId, image_url: url, title } as PortfolioItem]);
     } catch (e) {
       Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível adicionar a foto.');
-    } finally {
-      setUploadingPortfolio(false);
-    }
+    } finally { setUploadingPortfolio(false); }
   };
 
   const handleDeletePortfolioItem = (item: PortfolioItem) => {
     Alert.alert('Remover foto', `Remover "${item.title}" do portfólio?`, [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Remover', style: 'destructive',
-        onPress: async () => {
-          await removePortfolioItem(item.id);
-          setPortfolio((prev) => prev.filter((p) => p.id !== item.id));
-        },
-      },
+      { text: 'Remover', style: 'destructive', onPress: async () => {
+        await removePortfolioItem(item.id);
+        setPortfolio((prev) => prev.filter((p) => p.id !== item.id));
+      }},
     ]);
   };
 
   const toggleSpecialty = (s: string) =>
-    setSpecialties((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+    setSpecialties((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
 
   // ─── Tabela de preços ─────────────────────────────────────────────────────
 
@@ -237,19 +239,17 @@ export default function EditarPerfilScreen() {
     const max = tierMaxDays.trim() === '' ? null : parseInt(tierMaxDays, 10);
     const rate = parseFloat(tierRate);
     if (!min || min < 1) return Alert.alert('Atenção', 'Informe o mínimo de dias válido.');
-    if (max !== null && max < min) return Alert.alert('Atenção', 'O máximo de dias deve ser maior que o mínimo.');
+    if (max !== null && max < min) return Alert.alert('Atenção', 'O máximo deve ser maior que o mínimo.');
     if (!rate || rate <= 0) return Alert.alert('Atenção', 'Informe o valor por dia válido.');
-    const overlaps = pricingTiers.some(
-      (t) =>
-        (min >= t.minDays && (t.maxDays === null || min <= t.maxDays)) ||
-        (max !== null && max >= t.minDays && (t.maxDays === null || max <= t.maxDays)),
+    const overlaps = pricingTiers.some((t) =>
+      (min >= t.minDays && (t.maxDays === null || min <= t.maxDays)) ||
+      (max !== null && max >= t.minDays && (t.maxDays === null || max <= t.maxDays)),
     );
-    if (overlaps) return Alert.alert('Conflito', 'Esta faixa de dias se sobrepõe a outra já cadastrada.');
+    if (overlaps) return Alert.alert('Conflito', 'Esta faixa se sobrepõe a outra já cadastrada.');
     setPricingTiers((prev) =>
       [...prev, { minDays: min, maxDays: max, ratePerDay: rate }].sort((a, b) => a.minDays - b.minDays),
     );
-    setTierMinDays(''); setTierMaxDays(''); setTierRate('');
-    setShowAddTier(false);
+    setTierMinDays(''); setTierMaxDays(''); setTierRate(''); setShowAddTier(false);
   };
 
   const handleRemoveTier = (idx: number) => {
@@ -259,10 +259,20 @@ export default function EditarPerfilScreen() {
     ]);
   };
 
-  // ─── Salvar tudo ──────────────────────────────────────────────────────────
+  // ─── Salvar ───────────────────────────────────────────────────────────────
 
-  const handleSave = async () => {
-    if (!chefId) return Alert.alert('Erro', 'Perfil profissional não encontrado.');
+  const handleSaveAccount = async () => {
+    try {
+      setSaving(true);
+      await updateMyProfile({ fullName: fullName.trim(), city: city.trim(), state: stateSigla.trim() });
+      Alert.alert('Pronto!', 'Dados da conta atualizados.');
+    } catch (e) {
+      Alert.alert('Erro', authErrorMessage(e));
+    } finally { setSaving(false); }
+  };
+
+  const handleSaveProfessional = async () => {
+    if (!chefId) return;
     if (!headline.trim()) return Alert.alert('Atenção', 'Informe um título profissional.');
     try {
       setSaving(true);
@@ -271,33 +281,29 @@ export default function EditarPerfilScreen() {
           headline: headline.trim(), bio: bio.trim(),
           dailyRate: Number(dailyRate) || 0, yearsExperience: Number(yearsExperience) || 0,
           isAvailable, specialties, pricingTiers,
+          displayName: displayName.trim(),
+          professionalAvatarUrl: professionalAvatarUrl ?? undefined,
         }),
         updateMyProfile({ fullName: fullName.trim(), city: city.trim(), state: stateSigla.trim() }),
       ]);
-      Alert.alert('Pronto!', 'Perfil atualizado com sucesso.', [{ text: 'OK', onPress: () => router.back() }]);
-    } catch (error) {
-      Alert.alert('Erro ao salvar', authErrorMessage(error));
-    } finally {
-      setSaving(false);
-    }
+      Alert.alert('Pronto!', 'Perfil profissional atualizado.', [{ text: 'OK', onPress: () => router.back() }]);
+    } catch (e) {
+      Alert.alert('Erro ao salvar', authErrorMessage(e));
+    } finally { setSaving(false); }
   };
 
   // ─── Loading ──────────────────────────────────────────────────────────────
 
   if (loading) {
-    return (
-      <View style={[styles.flex, styles.center]}>
-        <ActivityIndicator color={c.primary} />
-      </View>
-    );
+    return <View style={[styles.flex, styles.center]}><ActivityIndicator color={c.primary} /></View>;
   }
 
-  const missingForActivation = chefId
-    ? validateChefProfileForActivation({
-        headline, bio, dailyRate: Number(dailyRate), yearsExperience: Number(yearsExperience),
-        specialties, avatarUrl, city,
-      })
-    : [];
+  const missingForActivation = chefId ? validateChefProfileForActivation({
+    headline, bio, dailyRate: Number(dailyRate), yearsExperience: Number(yearsExperience),
+    specialties, avatarUrl: professionalAvatarUrl ?? personalAvatarUrl, city,
+  }) : [];
+
+  const firstName = fullName.split(' ')[0] || 'você';
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -305,44 +311,39 @@ export default function EditarPerfilScreen() {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
 
-      {/* Modal: Adicionar faixa de preço */}
+      {/* Modal: faixa de preço */}
       <Modal visible={showAddTier} transparent animationType="fade" onRequestClose={() => setShowAddTier(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBox, { backgroundColor: c.card, borderColor: c.border }]}>
-            <Text style={[styles.modalTitle, { color: c.cream }]}>Nova faixa de preço</Text>
-            <View style={styles.tierModalRow}>
-              <View style={styles.tierModalField}>
+            <Text style={styles.modalTitle}>Nova faixa de preço</Text>
+            <View style={styles.row}>
+              <View style={styles.rowItem}>
                 <Text style={styles.label}>DE (dias)</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput style={styles.input} placeholder="1" placeholderTextColor={c.hint}
-                    value={tierMinDays} onChangeText={setTierMinDays} keyboardType="numeric" />
-                </View>
+                <View style={styles.inputWrapper}><TextInput style={styles.input} placeholder="1" placeholderTextColor={c.hint}
+                  value={tierMinDays} onChangeText={setTierMinDays} keyboardType="numeric" /></View>
               </View>
-              <View style={styles.tierModalField}>
-                <Text style={styles.label}>ATÉ (dias)</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput style={styles.input} placeholder="∞ (sem limite)" placeholderTextColor={c.hint}
-                    value={tierMaxDays} onChangeText={setTierMaxDays} keyboardType="numeric" />
-                </View>
+              <View style={styles.rowItem}>
+                <Text style={styles.label}>ATÉ (∞ = sem limite)</Text>
+                <View style={styles.inputWrapper}><TextInput style={styles.input} placeholder="—" placeholderTextColor={c.hint}
+                  value={tierMaxDays} onChangeText={setTierMaxDays} keyboardType="numeric" /></View>
               </View>
             </View>
             <Text style={styles.label}>VALOR POR DIA (R$)</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput style={styles.input} placeholder="450" placeholderTextColor={c.hint}
-                value={tierRate} onChangeText={setTierRate} keyboardType="numeric" />
-            </View>
+            <View style={styles.inputWrapper}><TextInput style={styles.input} placeholder="450" placeholderTextColor={c.hint}
+              value={tierRate} onChangeText={setTierRate} keyboardType="numeric" /></View>
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.modalBtn, { borderColor: c.border }]} onPress={() => setShowAddTier(false)}>
                 <Text style={[styles.modalBtnText, { color: c.muted }]}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalBtn, { backgroundColor: c.primary, borderColor: c.primary }]} onPress={handleAddTier}>
-                <Text style={[styles.modalBtnText, { color: '#fff' }]}>Adicionar</Text>
+                <Text style={[styles.modalBtnText, { color: c.onPrimary }]}>Adicionar</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
           <FontAwesome name="chevron-left" size={18} color={c.cream} />
@@ -353,98 +354,158 @@ export default function EditarPerfilScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
-        {/* ── Foto de perfil ── */}
-        <View style={styles.photoRow}>
-          <View style={styles.photoCircle}>
-            {avatarUrl
-              ? <Image source={{ uri: avatarUrl }} style={styles.photoImg} />
-              : <FontAwesome name="user" size={28} color={c.hint} />}
+        {/* ══════════════════════════════════════════
+            SEÇÃO 1 — MINHA CONTA
+            Dados de acesso ao app, nome e foto pessoal.
+            Usados em saudações: "Bom dia, {firstName}!"
+        ══════════════════════════════════════════ */}
+        <View style={[styles.sectionCard, { borderColor: c.primary + '50' }]}>
+          <View style={styles.sectionCardHeader}>
+            <View style={[styles.sectionCardIcon, { backgroundColor: c.primary + '20' }]}>
+              <FontAwesome name="user-circle-o" size={16} color={c.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionCardTitle}>MINHA CONTA</Text>
+              <Text style={styles.sectionCardSub}>Dados de acesso e identidade no app</Text>
+            </View>
           </View>
-          <TouchableOpacity style={styles.photoBtn} onPress={handlePickPhoto} disabled={uploadingPhoto}>
-            {uploadingPhoto
-              ? <ActivityIndicator size="small" color={c.primary} />
-              : <>
-                  <FontAwesome name="camera" size={13} color={c.primary} />
-                  <Text style={styles.photoBtnText}>{avatarUrl ? 'Alterar foto' : 'Adicionar foto'}</Text>
-                </>}
+
+          {/* Avatar pessoal */}
+          <View style={styles.avatarRow}>
+            <View style={styles.avatarCircle}>
+              {personalAvatarUrl
+                ? <Image source={{ uri: personalAvatarUrl }} style={styles.avatarImg} />
+                : <FontAwesome name="user" size={28} color={c.hint} />}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.avatarLabel}>Foto pessoal</Text>
+              <Text style={styles.avatarSub}>Usada em mensagens do app e saudações</Text>
+              <TouchableOpacity style={styles.avatarBtn} onPress={handlePickPersonalPhoto} disabled={uploadingPersonal}>
+                {uploadingPersonal
+                  ? <ActivityIndicator size="small" color={c.primary} />
+                  : <><FontAwesome name="camera" size={12} color={c.primary} /><Text style={styles.avatarBtnText}>{personalAvatarUrl ? 'Alterar' : 'Adicionar foto'}</Text></>}
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Preview de saudação */}
+          <View style={styles.greetingPreview}>
+            <FontAwesome name="sun-o" size={12} color={c.warning} />
+            <Text style={styles.greetingText}>
+              Pré-visualização: <Text style={{ color: c.cream, fontWeight: '700' }}>"Bom dia, {firstName}! 👋"</Text>
+            </Text>
+          </View>
+
+          <Text style={styles.label}>NOME COMPLETO</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput style={styles.input} placeholder="Seu nome completo" placeholderTextColor={c.hint}
+              value={fullName} onChangeText={setFullName} />
+          </View>
+
+          <Text style={[styles.subLabel, { marginBottom: 8 }]}>E-mail: <Text style={{ color: c.cream }}>{currentEmail || '—'}</Text></Text>
+
+          {/* Alterar e-mail */}
+          <TouchableOpacity style={styles.toggleRow} onPress={() => setShowEmailChange((v) => !v)} activeOpacity={0.7}>
+            <FontAwesome name="envelope-o" size={13} color={c.primary} />
+            <Text style={styles.toggleText}>Alterar e-mail</Text>
+            <FontAwesome name={showEmailChange ? 'chevron-up' : 'chevron-down'} size={11} color={c.muted} />
+          </TouchableOpacity>
+          {showEmailChange && (
+            <View style={styles.subSection}>
+              <Text style={styles.label}>NOVO E-MAIL</Text>
+              <View style={styles.inputWrapper}><TextInput style={styles.input} placeholder="novo@email.com" placeholderTextColor={c.hint}
+                value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" /></View>
+              <Text style={styles.label}>SENHA ATUAL (para confirmar)</Text>
+              <View style={styles.inputWrapper}><TextInput style={styles.input} placeholder="••••••••" placeholderTextColor={c.hint}
+                value={passwordForEmail} onChangeText={setPasswordForEmail} secureTextEntry /></View>
+              <TouchableOpacity style={[styles.subBtn, { backgroundColor: c.primary }]} onPress={handleUpdateEmail} disabled={savingEmail}>
+                {savingEmail ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.subBtnText}>Confirmar alteração</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Alterar senha */}
+          <TouchableOpacity style={[styles.toggleRow, { marginTop: 4 }]} onPress={() => setShowPasswordChange((v) => !v)} activeOpacity={0.7}>
+            <FontAwesome name="lock" size={13} color={c.primary} />
+            <Text style={styles.toggleText}>Alterar senha</Text>
+            <FontAwesome name={showPasswordChange ? 'chevron-up' : 'chevron-down'} size={11} color={c.muted} />
+          </TouchableOpacity>
+          {showPasswordChange && (
+            <View style={styles.subSection}>
+              <Text style={styles.label}>SENHA ATUAL</Text>
+              <View style={styles.inputWrapper}><TextInput style={styles.input} placeholder="••••••••" placeholderTextColor={c.hint}
+                value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry /></View>
+              <Text style={styles.label}>NOVA SENHA</Text>
+              <View style={styles.inputWrapper}><TextInput style={styles.input} placeholder="Mínimo 6 caracteres" placeholderTextColor={c.hint}
+                value={newPassword} onChangeText={setNewPassword} secureTextEntry /></View>
+              <Text style={styles.label}>CONFIRMAR NOVA SENHA</Text>
+              <View style={styles.inputWrapper}><TextInput style={styles.input} placeholder="••••••••" placeholderTextColor={c.hint}
+                value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry /></View>
+              {newPassword.length > 0 && newPassword !== confirmPassword && (
+                <Text style={[styles.subLabel, { color: c.danger }]}>As senhas não coincidem.</Text>
+              )}
+              <TouchableOpacity style={[styles.subBtn, { backgroundColor: c.primary }]} onPress={handleUpdatePassword} disabled={savingPassword}>
+                {savingPassword ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.subBtnText}>Confirmar nova senha</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.saveAccountBtn, saving && { opacity: 0.6 }]}
+            onPress={handleSaveAccount} disabled={saving}
+          >
+            {saving ? <ActivityIndicator size="small" color={c.onPrimary} />
+              : <Text style={[styles.saveAccountBtnText, { color: c.onPrimary }]}>Salvar dados da conta</Text>}
           </TouchableOpacity>
         </View>
 
-        {/* ── Dados pessoais ── */}
-        <Text style={styles.sectionHeader}>DADOS PESSOAIS</Text>
-
-        <Text style={styles.label}>NOME COMPLETO</Text>
-        <View style={styles.inputWrapper}>
-          <TextInput style={styles.input} placeholder="Seu nome completo" placeholderTextColor={c.hint}
-            value={fullName} onChangeText={setFullName} />
-        </View>
-
-        <Text style={styles.subLabel}>E-mail atual: {currentEmail || '—'}</Text>
-
-        {/* Alterar e-mail */}
-        <TouchableOpacity style={styles.toggleRow} onPress={() => setShowEmailChange((v) => !v)} activeOpacity={0.7}>
-          <FontAwesome name="envelope-o" size={13} color={c.primary} />
-          <Text style={styles.toggleText}>Alterar e-mail</Text>
-          <FontAwesome name={showEmailChange ? 'chevron-up' : 'chevron-down'} size={11} color={c.muted} />
-        </TouchableOpacity>
-        {showEmailChange && (
-          <View style={styles.subSection}>
-            <Text style={styles.label}>NOVO E-MAIL</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput style={styles.input} placeholder="novo@email.com" placeholderTextColor={c.hint}
-                value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" />
-            </View>
-            <Text style={styles.label}>SENHA ATUAL (para confirmar)</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput style={styles.input} placeholder="••••••••" placeholderTextColor={c.hint}
-                value={passwordForEmail} onChangeText={setPasswordForEmail} secureTextEntry />
-            </View>
-            <TouchableOpacity style={[styles.subBtn, { backgroundColor: c.primary }]} onPress={handleUpdateEmail} disabled={savingEmail}>
-              {savingEmail
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <Text style={styles.subBtnText}>Confirmar alteração</Text>}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Alterar senha */}
-        <TouchableOpacity style={[styles.toggleRow, { marginTop: 4 }]} onPress={() => setShowPasswordChange((v) => !v)} activeOpacity={0.7}>
-          <FontAwesome name="lock" size={13} color={c.primary} />
-          <Text style={styles.toggleText}>Alterar senha</Text>
-          <FontAwesome name={showPasswordChange ? 'chevron-up' : 'chevron-down'} size={11} color={c.muted} />
-        </TouchableOpacity>
-        {showPasswordChange && (
-          <View style={styles.subSection}>
-            <Text style={styles.label}>SENHA ATUAL</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput style={styles.input} placeholder="••••••••" placeholderTextColor={c.hint}
-                value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry />
-            </View>
-            <Text style={styles.label}>NOVA SENHA</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput style={styles.input} placeholder="Mínimo 6 caracteres" placeholderTextColor={c.hint}
-                value={newPassword} onChangeText={setNewPassword} secureTextEntry />
-            </View>
-            <Text style={styles.label}>CONFIRMAR NOVA SENHA</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput style={styles.input} placeholder="••••••••" placeholderTextColor={c.hint}
-                value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
-            </View>
-            {newPassword.length > 0 && newPassword !== confirmPassword && (
-              <Text style={[styles.subLabel, { color: c.danger }]}>As senhas não coincidem.</Text>
-            )}
-            <TouchableOpacity style={[styles.subBtn, { backgroundColor: c.primary }]} onPress={handleUpdatePassword} disabled={savingPassword}>
-              {savingPassword
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <Text style={styles.subBtnText}>Confirmar nova senha</Text>}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* ── Perfil profissional (só quando tem chefId) ── */}
+        {/* ══════════════════════════════════════════
+            SEÇÃO 2 — PERFIL PROFISSIONAL
+            Aparece publicamente no catálogo.
+            Chef pode usar nome artístico (vulgo) e
+            foto profissional diferente da pessoal.
+        ══════════════════════════════════════════ */}
         {chefId && (
-          <>
-            <Text style={[styles.sectionHeader, { marginTop: 28 }]}>PERFIL PROFISSIONAL</Text>
+          <View style={[styles.sectionCard, { borderColor: c.success + '50', marginTop: 20 }]}>
+            <View style={styles.sectionCardHeader}>
+              <View style={[styles.sectionCardIcon, { backgroundColor: c.success + '20' }]}>
+                <FontAwesome name="cutlery" size={15} color={c.success} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.sectionCardTitle, { color: c.success }]}>PERFIL PROFISSIONAL</Text>
+                <Text style={styles.sectionCardSub}>Aparece publicamente no catálogo para clientes</Text>
+              </View>
+            </View>
+
+            {/* Foto profissional */}
+            <View style={styles.avatarRow}>
+              <View style={styles.avatarSquare}>
+                {professionalAvatarUrl
+                  ? <Image source={{ uri: professionalAvatarUrl }} style={styles.avatarImg} />
+                  : <FontAwesome name="camera" size={24} color={c.hint} />}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.avatarLabel}>Foto profissional</Text>
+                <Text style={styles.avatarSub}>Exibida no catálogo — pode ser diferente da foto pessoal</Text>
+                <TouchableOpacity style={styles.avatarBtn} onPress={handlePickProfessionalPhoto} disabled={uploadingPro}>
+                  {uploadingPro
+                    ? <ActivityIndicator size="small" color={c.success} />
+                    : <><FontAwesome name="camera" size={12} color={c.success} /><Text style={[styles.avatarBtnText, { color: c.success }]}>{professionalAvatarUrl ? 'Alterar' : 'Adicionar foto'}</Text></>}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Nome artístico / vulgo */}
+            <Text style={styles.label}>NOME ARTÍSTICO / VULGO (opcional)</Text>
+            <View style={styles.inputWrapper}>
+              <TextInput style={styles.input} placeholder={`Padrão: "${firstName}" (nome da conta)`}
+                placeholderTextColor={c.hint} value={displayName} onChangeText={setDisplayName} />
+            </View>
+            <Text style={[styles.subLabel, { marginBottom: 12 }]}>
+              {displayName.trim()
+                ? `Clientes verão: "${displayName.trim()}"`
+                : `Clientes verão: "${fullName || 'seu nome de conta'}"`}
+            </Text>
 
             {/* Toggle de visibilidade */}
             <View style={[styles.visibilityCard, { borderColor: isAvailable ? c.success : c.border }]}>
@@ -452,7 +513,7 @@ export default function EditarPerfilScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.visibilityTitle}>VISIBILIDADE NO CATÁLOGO</Text>
                   <Text style={[styles.visibilityStatus, { color: isAvailable ? c.success : c.muted }]}>
-                    {isAvailable ? 'Ativo — aparece na busca' : 'Inativo — não aparece na busca'}
+                    {isAvailable ? 'Ativo — clientes podem te contratar' : 'Inativo — não aparece na busca'}
                   </Text>
                 </View>
                 <Switch value={isAvailable} onValueChange={handleToggleVisibility}
@@ -481,34 +542,26 @@ export default function EditarPerfilScreen() {
             <View style={styles.row}>
               <View style={[styles.rowItem, { flex: 2 }]}>
                 <Text style={styles.label}>CIDADE</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput style={styles.input} placeholder="São Paulo" placeholderTextColor={c.hint}
-                    value={city} onChangeText={setCity} />
-                </View>
+                <View style={styles.inputWrapper}><TextInput style={styles.input} placeholder="São Paulo"
+                  placeholderTextColor={c.hint} value={city} onChangeText={setCity} /></View>
               </View>
               <View style={styles.rowItem}>
                 <Text style={styles.label}>UF</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput style={styles.input} placeholder="SP" placeholderTextColor={c.hint}
-                    value={stateSigla} onChangeText={setStateSigla} maxLength={2} autoCapitalize="characters" />
-                </View>
+                <View style={styles.inputWrapper}><TextInput style={styles.input} placeholder="SP"
+                  placeholderTextColor={c.hint} value={stateSigla} onChangeText={setStateSigla} maxLength={2} autoCapitalize="characters" /></View>
               </View>
             </View>
 
             <View style={styles.row}>
               <View style={styles.rowItem}>
                 <Text style={styles.label}>DIÁRIA (R$)</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput style={styles.input} placeholder="480" placeholderTextColor={c.hint}
-                    value={dailyRate} onChangeText={setDailyRate} keyboardType="numeric" />
-                </View>
+                <View style={styles.inputWrapper}><TextInput style={styles.input} placeholder="480"
+                  placeholderTextColor={c.hint} value={dailyRate} onChangeText={setDailyRate} keyboardType="numeric" /></View>
               </View>
               <View style={styles.rowItem}>
                 <Text style={styles.label}>EXPERIÊNCIA (ANOS)</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput style={styles.input} placeholder="5" placeholderTextColor={c.hint}
-                    value={yearsExperience} onChangeText={setYearsExperience} keyboardType="numeric" />
-                </View>
+                <View style={styles.inputWrapper}><TextInput style={styles.input} placeholder="5"
+                  placeholderTextColor={c.hint} value={yearsExperience} onChangeText={setYearsExperience} keyboardType="numeric" /></View>
               </View>
             </View>
 
@@ -539,30 +592,22 @@ export default function EditarPerfilScreen() {
                 </View>
               ))}
               <TouchableOpacity style={styles.portfolioAdd} onPress={handleAddPortfolioPhoto} disabled={uploadingPortfolio}>
-                {uploadingPortfolio
-                  ? <ActivityIndicator color={c.primary} />
-                  : <>
-                      <FontAwesome name="plus" size={22} color={c.primary} />
-                      <Text style={styles.portfolioAddText}>Adicionar{'\n'}prato</Text>
-                    </>}
+                {uploadingPortfolio ? <ActivityIndicator color={c.primary} />
+                  : <><FontAwesome name="plus" size={22} color={c.primary} /><Text style={styles.portfolioAddText}>Adicionar{'\n'}prato</Text></>}
               </TouchableOpacity>
             </ScrollView>
 
-            {/* ── Tabela de preços dinâmica ── */}
-            <Text style={[styles.sectionHeader, { marginTop: 28 }]}>PRECIFICAÇÃO POR FAIXA DE DIAS</Text>
+            {/* Precificação dinâmica */}
+            <Text style={[styles.label, { marginTop: 16 }]}>PRECIFICAÇÃO POR FAIXA DE DIAS</Text>
             <Text style={styles.subLabel}>
-              Configure descontos progressivos para atrair eventos mais longos. O valor padrão (diária acima) é usado quando não há faixa correspondente.
+              Desconto progressivo para atrair eventos mais longos. Sem faixa correspondente, usa o valor padrão.
             </Text>
-
-            {pricingTiers.length === 0 ? (
-              <Text style={[styles.subLabel, { marginBottom: 12 }]}>Nenhuma faixa cadastrada — usando valor padrão da diária.</Text>
-            ) : (
-              pricingTiers.map((tier, idx) => (
+            {pricingTiers.length === 0
+              ? <Text style={[styles.subLabel, { marginBottom: 12 }]}>Nenhuma faixa — usando diária padrão.</Text>
+              : pricingTiers.map((tier, idx) => (
                 <View key={idx} style={styles.tierCard}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.tierDays}>
-                      {tier.minDays}{tier.maxDays !== null ? `–${tier.maxDays}` : '+'} dias
-                    </Text>
+                    <Text style={styles.tierDays}>{tier.minDays}{tier.maxDays !== null ? `–${tier.maxDays}` : '+'} dias</Text>
                     <Text style={styles.tierRate}>R$ {tier.ratePerDay.toFixed(0)}/dia</Text>
                   </View>
                   <TouchableOpacity onPress={() => handleRemoveTier(idx)} hitSlop={10}>
@@ -570,36 +615,21 @@ export default function EditarPerfilScreen() {
                   </TouchableOpacity>
                 </View>
               ))
-            )}
-
+            }
             <TouchableOpacity style={styles.addTierBtn} onPress={() => setShowAddTier(true)}>
               <FontAwesome name="plus" size={13} color={c.primary} />
               <Text style={styles.addTierText}>Adicionar faixa de preço</Text>
             </TouchableOpacity>
 
-            <GoldButton label="SALVAR PERFIL" onPress={handleSave} loading={saving} style={{ marginTop: 24 }} />
-          </>
+            <GoldButton label="SALVAR PERFIL PROFISSIONAL" onPress={handleSaveProfessional} loading={saving} style={{ marginTop: 24 }} />
+          </View>
         )}
 
-        {/* Salvar apenas dados pessoais (sem perfil chef) */}
+        {/* Cliente sem perfil chef: só salvar conta */}
         {!chefId && (
-          <GoldButton
-            label="SALVAR DADOS"
-            onPress={async () => {
-              try {
-                setSaving(true);
-                await updateMyProfile({ fullName: fullName.trim(), city: city.trim(), state: stateSigla.trim() });
-                Alert.alert('Pronto!', 'Dados atualizados.', [{ text: 'OK', onPress: () => router.back() }]);
-              } catch (e) {
-                Alert.alert('Erro', authErrorMessage(e));
-              } finally {
-                setSaving(false);
-              }
-            }}
-            loading={saving}
-            style={{ marginTop: 24 }}
-          />
+          <View style={{ height: 24 }} />
         )}
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -609,83 +639,137 @@ const makeStyles = (c: Palette) =>
   StyleSheet.create({
     flex: { flex: 1, backgroundColor: c.dark },
     center: { alignItems: 'center', justifyContent: 'center' },
+
     header: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: GSpacing.screen, paddingTop: 20, paddingBottom: 8,
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: GSpacing.screen, paddingTop: 16, paddingBottom: 12,
+      backgroundColor: c.dark,
     },
-    backBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-    headerTitle: { fontSize: 18, fontWeight: '700', color: c.cream, fontFamily: brandFont },
-    scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 48, paddingTop: 12 },
+    backBtn: { width: 28 },
+    headerTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: c.cream, fontFamily: brandFont },
+    scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 48, paddingTop: 8 },
 
-    // Seção
-    sectionHeader: {
-      fontSize: 10, color: c.primary, letterSpacing: 2.5, fontWeight: '800',
-      marginBottom: 16, marginTop: 4, borderBottomWidth: 1, borderBottomColor: c.border, paddingBottom: 8,
+    // Card de seção
+    sectionCard: {
+      backgroundColor: c.surface,
+      borderRadius: GSpacing.radius + 2,
+      borderWidth: 1.5,
+      padding: 18,
+      ...GShadow,
     },
+    sectionCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 },
+    sectionCardIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    sectionCardTitle: { fontSize: 12, fontWeight: '800', letterSpacing: 2, color: c.primary },
+    sectionCardSub: { fontSize: 12, color: c.muted, marginTop: 2 },
 
-    // Foto
-    photoRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
-    photoCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-    photoImg: { width: '100%', height: '100%' },
-    photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    photoBtnText: { color: c.primary, fontSize: 13, fontWeight: '600' },
+    // Avatar
+    avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 },
+    avatarCircle: {
+      width: 64, height: 64, borderRadius: 32,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    },
+    avatarSquare: {
+      width: 64, height: 64, borderRadius: 12,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    },
+    avatarImg: { width: '100%', height: '100%' },
+    avatarLabel: { fontSize: 13, fontWeight: '700', color: c.cream },
+    avatarSub: { fontSize: 11, color: c.muted, marginTop: 2, lineHeight: 15 },
+    avatarBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
+    avatarBtnText: { fontSize: 13, color: c.primary, fontWeight: '600' },
+
+    // Preview de saudação
+    greetingPreview: {
+      flexDirection: 'row', alignItems: 'center', gap: 7,
+      backgroundColor: c.warning + '15', borderRadius: 8,
+      borderWidth: 1, borderColor: c.warning + '30',
+      paddingHorizontal: 12, paddingVertical: 8, marginBottom: 16,
+    },
+    greetingText: { fontSize: 12, color: c.muted, flex: 1 },
+
+    // Botão salvar conta
+    saveAccountBtn: {
+      backgroundColor: c.primary, borderRadius: 10,
+      paddingVertical: 12, alignItems: 'center', marginTop: 16,
+    },
+    saveAccountBtnText: { fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
 
     // Campos
-    label: { fontSize: 10, color: c.primary, letterSpacing: 2, fontWeight: '600', marginBottom: 8 },
-    subLabel: { fontSize: 12, color: c.muted, marginBottom: 12, lineHeight: 18 },
-    inputWrapper: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: GSpacing.radius, paddingHorizontal: 16, marginBottom: 18, height: GSpacing.inputHeight, justifyContent: 'center' },
-    textareaWrapper: { height: 110, paddingVertical: 12 },
-    input: { fontSize: 15, color: c.cream },
-    textarea: { height: '100%' },
+    label: { fontSize: 10, color: c.primary, letterSpacing: 2, fontWeight: '700', marginBottom: 6, marginTop: 14 },
+    subLabel: { fontSize: 12, color: c.muted, lineHeight: 17 },
+    inputWrapper: { borderWidth: 1, borderColor: c.border, borderRadius: 10, backgroundColor: c.card },
+    input: { paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: c.cream, height: GSpacing.inputHeight },
+    textareaWrapper: { height: 100 },
+    textarea: { height: 90 },
     row: { flexDirection: 'row', gap: 12 },
     rowItem: { flex: 1 },
 
-    // Toggle expandível
-    toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, marginBottom: 4, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 14, backgroundColor: c.card },
+    // Seções expansíveis
+    toggleRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13,
+    },
     toggleText: { flex: 1, fontSize: 14, color: c.cream, fontWeight: '600' },
-    subSection: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginTop: 4, marginBottom: 12, borderWidth: 1, borderColor: c.border },
-    subBtn: { borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
-    subBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+    subSection: { backgroundColor: c.card, borderRadius: 10, padding: 14, marginTop: 4, borderWidth: 1, borderColor: c.border },
+    subBtn: { borderRadius: 9, paddingVertical: 11, alignItems: 'center', marginTop: 10 },
+    subBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
     // Visibilidade
-    visibilityCard: { borderWidth: 1.5, borderRadius: 12, padding: 14, marginBottom: 22 },
-    visibilityTop: { flexDirection: 'row', alignItems: 'center' },
-    visibilityTitle: { fontSize: 10, color: c.primary, letterSpacing: 2, fontWeight: '700' },
-    visibilityStatus: { fontSize: 13, marginTop: 3, fontWeight: '600' },
-    missingWrap: { borderTopWidth: 1, borderTopColor: c.border, marginTop: 12, paddingTop: 10 },
-    missingTitle: { fontSize: 12, color: c.warning, fontWeight: '600', marginBottom: 6 },
-    missingItem: { fontSize: 12, color: c.muted, lineHeight: 20 },
+    visibilityCard: {
+      borderWidth: 1.5, borderRadius: 12, padding: 14, marginTop: 14, marginBottom: 4,
+    },
+    visibilityTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    visibilityTitle: { fontSize: 10, letterSpacing: 2, fontWeight: '700', color: c.primary },
+    visibilityStatus: { fontSize: 13, marginTop: 3 },
+    missingWrap: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: c.border },
+    missingTitle: { fontSize: 12, color: c.warning, fontWeight: '600', marginBottom: 4 },
+    missingItem: { fontSize: 12, color: c.muted },
 
     // Especialidades
-    chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-    chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: c.border, backgroundColor: c.card },
+    chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+    chip: {
+      borderWidth: 1, borderColor: c.border, borderRadius: 20,
+      paddingHorizontal: 14, paddingVertical: 8,
+    },
     chipActive: { backgroundColor: c.primary, borderColor: c.primary },
-    chipText: { fontSize: 13, color: c.muted, fontWeight: '600' },
+    chipText: { fontSize: 13, color: c.muted, fontWeight: '500' },
 
     // Portfólio
     portfolioScroll: { marginBottom: 8 },
-    portfolioContent: { gap: 12, paddingVertical: 4 },
+    portfolioContent: { gap: 12, paddingVertical: 4, paddingRight: 4 },
     portfolioItem: { width: 110 },
-    portfolioThumb: { width: 110, height: 110, borderRadius: 10, backgroundColor: c.card },
-    portfolioDelete: { position: 'absolute', top: -6, right: -6, backgroundColor: c.dark, borderRadius: 10 },
-    portfolioLabel: { fontSize: 11, color: c.muted, marginTop: 6, textAlign: 'center' },
-    portfolioAdd: { width: 110, height: 110, borderRadius: 10, borderWidth: 1.5, borderColor: c.primary, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 8 },
-    portfolioAddText: { fontSize: 12, color: c.primary, textAlign: 'center', fontWeight: '600' },
+    portfolioThumb: { width: 110, height: 90, borderRadius: 10 },
+    portfolioDelete: { position: 'absolute', top: 4, right: 4 },
+    portfolioLabel: { fontSize: 11, color: c.muted, marginTop: 4 },
+    portfolioAdd: {
+      width: 110, height: 90, borderRadius: 10, borderWidth: 1.5, borderStyle: 'dashed',
+      borderColor: c.primary, alignItems: 'center', justifyContent: 'center', gap: 6,
+    },
+    portfolioAddText: { fontSize: 11, color: c.primary, textAlign: 'center' },
 
     // Tabela de preços
-    tierCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8 },
+    tierCard: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      borderRadius: 10, padding: 14, marginBottom: 8,
+    },
     tierDays: { fontSize: 14, fontWeight: '700', color: c.cream },
-    tierRate: { fontSize: 13, color: c.primary, marginTop: 2 },
-    addTierBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: c.primary, borderStyle: 'dashed', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, marginTop: 4, justifyContent: 'center' },
-    addTierText: { color: c.primary, fontWeight: '600', fontSize: 14 },
+    tierRate: { fontSize: 12, color: c.primary, marginTop: 2 },
+    addTierBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      borderWidth: 1, borderColor: c.primary + '60', borderStyle: 'dashed',
+      borderRadius: 10, paddingVertical: 11, justifyContent: 'center', marginTop: 4,
+    },
+    addTierText: { fontSize: 13, color: c.primary, fontWeight: '600' },
 
     // Modal
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-    modalBox: { width: '100%', borderRadius: 16, borderWidth: 1, padding: 24 },
-    modalTitle: { fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 20 },
-    tierModalRow: { flexDirection: 'row', gap: 12 },
-    tierModalField: { flex: 1 },
-    modalActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
-    modalBtn: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: GSpacing.screen },
+    modalBox: { width: '100%', borderRadius: 14, borderWidth: 1, padding: 20 },
+    modalTitle: { fontSize: 16, fontWeight: '700', color: c.cream, marginBottom: 14, fontFamily: brandFont },
+    modalActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
+    modalBtn: { flex: 1, borderWidth: 1, borderRadius: 9, paddingVertical: 11, alignItems: 'center' },
     modalBtnText: { fontSize: 14, fontWeight: '700' },
   });

@@ -68,6 +68,39 @@ export function pickAndUploadAvatar(): Promise<string | null> {
   });
 }
 
+/** Foto profissional do chef (bucket avatars, path diferente do pessoal). */
+export function pickAndUploadProfessionalAvatar(): Promise<string | null> {
+  return new Promise((resolve, reject) => {
+    Alert.alert(
+      'Foto profissional',
+      'Esta foto aparece publicamente no catálogo',
+      [
+        { text: 'Tirar foto', onPress: () => pickFromCamera().then(resolve).catch(reject) },
+        { text: 'Escolher da galeria', onPress: () => pickGalleryForProfessional().then(resolve).catch(reject) },
+        { text: 'Cancelar', style: 'cancel', onPress: () => resolve(null) },
+      ],
+    );
+  });
+}
+
+async function pickGalleryForProfessional(): Promise<string | null> {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== 'granted') throw new Error('Permissão de galeria negada.');
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.85,
+  });
+  if (result.canceled || !result.assets[0]) return null;
+  const asset = result.assets[0];
+  const mimeType = asset.mimeType ?? 'image/jpeg';
+  if (!isSupabaseConfigured) {
+    return `https://randomuser.me/api/portraits/men/${Math.floor(Math.random() * 99)}.jpg`;
+  }
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new Error('Sessão expirada.');
+  const ext = mimeType === 'image/png' ? 'png' : 'jpg';
+  return uploadToAvatarsBucket(asset.uri, `${auth.user.id}/professional.${ext}`, mimeType);
+}
+
 /** Abre a galeria, faz upload e devolve URL pública. Retorna null se cancelado. */
 export async function pickAndUploadPortfolioPhoto(): Promise<string | null> {
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
