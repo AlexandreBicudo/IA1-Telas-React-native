@@ -16,6 +16,7 @@ import { GSpacing, brandFont, type Palette } from '@/constants/gourmet-theme';
 import { AccentButton, ScreenGradient } from '@/components/ui-gourmet';
 import { useColors } from '@/components/theme-context';
 import { getChefById } from '@/services/chefService';
+import { getChefReviews, type Review } from '@/services/reviewService';
 import type { ChefListing, VerificationStatus } from '@/types/database';
 
 export default function ChefDetailScreen() {
@@ -26,6 +27,7 @@ export default function ChefDetailScreen() {
   const chefId = typeof params.id === 'string' ? params.id : '';
 
   const [chef, setChef] = useState<ChefListing | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
 
   const verification = (s: VerificationStatus) =>
@@ -38,15 +40,14 @@ export default function ChefDetailScreen() {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    getChefById(chefId).then((data) => {
+    Promise.all([getChefById(chefId), getChefReviews(chefId)]).then(([data, rv]) => {
       if (active) {
         setChef(data);
+        setReviews(rv);
         setLoading(false);
       }
     });
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [chefId]);
 
   const handleAgendar = () => {
@@ -171,6 +172,33 @@ export default function ChefDetailScreen() {
             <Text style={styles.muted}>Nenhum item no portfólio ainda.</Text>
           )}
 
+          <Text style={styles.sectionTitle}>
+            Avaliações{chef.ratingCount > 0 ? ` (${chef.ratingCount})` : ''}
+          </Text>
+          {reviews.length === 0 ? (
+            <Text style={styles.muted}>Nenhuma avaliação ainda.</Text>
+          ) : (
+            reviews.map((r) => (
+              <View key={r.id} style={styles.reviewCard}>
+                <View style={styles.reviewHeader}>
+                  <View style={styles.reviewAvatar}>
+                    <Text style={styles.reviewAvatarText}>{getInitials(r.reviewerName)}</Text>
+                  </View>
+                  <View style={styles.reviewMeta}>
+                    <Text style={styles.reviewerName}>{r.reviewerName}</Text>
+                    <Text style={styles.reviewDate}>
+                      {new Date(r.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </Text>
+                  </View>
+                  <StarRow rating={r.rating} c={c} />
+                </View>
+                {r.comment ? (
+                  <Text style={styles.reviewComment}>"{r.comment}"</Text>
+                ) : null}
+              </View>
+            ))
+          )}
+
           <AccentButton label="AGENDAR SERVIÇO" icon="calendar-check-o" onPress={handleAgendar} style={styles.cta} />
         </View>
       </ScrollView>
@@ -205,6 +233,21 @@ function getInitials(name: string) {
 }
 function formatYear(date: string) {
   return new Date(date).getFullYear().toString();
+}
+
+function StarRow({ rating, c }: { rating: number; c: Palette }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <FontAwesome
+          key={i}
+          name={i <= rating ? 'star' : 'star-o'}
+          size={13}
+          color={i <= rating ? c.primary : c.hint}
+        />
+      ))}
+    </View>
+  );
 }
 
 const makeStyles = (c: Palette) =>
@@ -274,5 +317,27 @@ const makeStyles = (c: Palette) =>
     },
     portfolioImg: { width: '100%', height: '100%' },
     portfolioTitle: { fontSize: 13, color: c.cream, marginTop: 6 },
+
+    // Avaliações
+    reviewCard: {
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: GSpacing.radius,
+      padding: 14,
+      marginBottom: 10,
+    },
+    reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+    reviewAvatar: {
+      width: 34, height: 34, borderRadius: 17,
+      backgroundColor: c.primary + '22',
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    },
+    reviewAvatarText: { fontSize: 12, fontWeight: '700', color: c.primary, fontFamily: brandFont },
+    reviewMeta: { flex: 1 },
+    reviewerName: { fontSize: 14, fontWeight: '700', color: c.cream },
+    reviewDate: { fontSize: 11, color: c.muted, marginTop: 1 },
+    reviewComment: { fontSize: 13, color: c.cream, lineHeight: 20, fontStyle: 'italic' },
+
     cta: { marginTop: 30 },
   });

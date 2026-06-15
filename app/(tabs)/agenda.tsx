@@ -5,6 +5,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -237,11 +238,15 @@ export default function AgendaScreen() {
                       <View style={styles.cardBody}>
                         {/* Linha superior: avatar + nome + preço */}
                         <View style={styles.cardHead}>
-                          <View style={[styles.avatar, { backgroundColor: sv.color + '22' }]}>
-                            <Text style={[styles.avatarText, { color: sv.color }]}>
-                              {getInitials(counterpart)}
-                            </Text>
-                          </View>
+                          {b.counterpartAvatarUrl ? (
+                            <Image source={{ uri: b.counterpartAvatarUrl }} style={styles.avatarImg} />
+                          ) : (
+                            <View style={[styles.avatar, { backgroundColor: sv.color + '22' }]}>
+                              <Text style={[styles.avatarText, { color: sv.color }]}>
+                                {getInitials(counterpart)}
+                              </Text>
+                            </View>
+                          )}
                           <View style={styles.nameBlock}>
                             <Text style={[styles.roleLabel, { color: sv.color }]}>{roleLabel}</Text>
                             <Text style={styles.personName} numberOfLines={1}>{counterpart}</Text>
@@ -262,9 +267,12 @@ export default function AgendaScreen() {
                           <InfoChip icon="calendar-o" text={formatDate(b.eventDate)} c={c} styles={styles} />
                           <InfoChip icon="users" text={`${b.guestsCount} pess.`} c={c} styles={styles} />
                           <InfoChip icon="map-marker" text={b.address.split(',')[0]} c={c} styles={styles} />
+                          {b.createdAt && (
+                            <InfoChip icon="clock-o" text={`Solicitado ${formatDate(b.createdAt)}`} c={c} styles={styles} />
+                          )}
                         </View>
 
-                        {/* Botões de ação contextuais */}
+                        {/* Botões de ação contextuais (chef apenas) */}
                         {tab === 'chef' && b.status === 'solicitado' && (
                           <View style={styles.actRow}>
                             <TouchableOpacity
@@ -292,17 +300,6 @@ export default function AgendaScreen() {
                           >
                             <FontAwesome name="check-circle" size={13} color={c.onPrimary} />
                             <Text style={[styles.btnSolidText, { color: c.onPrimary }]}>Concluir serviço</Text>
-                          </TouchableOpacity>
-                        )}
-                        {tab === 'client' && (b.status === 'solicitado' || b.status === 'confirmado') && (
-                          <TouchableOpacity
-                            style={[styles.btnOutline, { borderColor: c.danger }]}
-                            onPress={() => act(b.id, 'cancelado')}
-                            activeOpacity={0.8}
-                          >
-                            <Text style={[styles.btnOutlineText, { color: c.danger }]}>
-                              Cancelar agendamento
-                            </Text>
                           </TouchableOpacity>
                         )}
                       </View>
@@ -428,6 +425,7 @@ const makeStyles = (c: Palette) =>
       width: 38, height: 38, borderRadius: 19,
       alignItems: 'center', justifyContent: 'center', flexShrink: 0,
     },
+    avatarImg: { width: 38, height: 38, borderRadius: 19, flexShrink: 0 },
     avatarText: { fontSize: 13, fontWeight: '700', fontFamily: brandFont },
     nameBlock: { flex: 1, minWidth: 0 },
     roleLabel: { fontSize: 10, letterSpacing: 1.5, fontWeight: '600' },

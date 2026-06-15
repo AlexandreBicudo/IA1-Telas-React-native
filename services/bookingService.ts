@@ -38,10 +38,22 @@ export interface BookingListItem {
   clientName: string;
   serviceType: ServiceType;
   eventDate: string;
+  createdAt: string;
   guestsCount: number;
   address: string;
   totalPrice: number;
   status: BookingStatus;
+  counterpartAvatarUrl?: string;
+}
+
+export interface ChefEarningsSummary {
+  totalThisMonth: number;
+  totalLastMonth: number;
+  completedJobs: number;
+  pendingJobs: number;
+  avgRating: number;
+  monthlyData: { label: string; value: number }[];
+  recentJobs: { id: string; clientName: string; date: string; amount: number; avatarUrl?: string }[];
 }
 
 export interface BookingDetail extends BookingListItem {
@@ -66,6 +78,7 @@ const MOCK: MyBookings = {
       clientName: 'Você',
       serviceType: 'evento',
       eventDate: new Date(Date.now() + 6 * 86400000).toISOString(),
+      createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
       guestsCount: 8,
       address: 'Rua das Acácias, 120',
       totalPrice: 520,
@@ -78,6 +91,7 @@ const MOCK: MyBookings = {
       clientName: 'Você',
       serviceType: 'diaria',
       eventDate: new Date(Date.now() + 14 * 86400000).toISOString(),
+      createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
       guestsCount: 4,
       address: 'A combinar no chat',
       totalPrice: 600,
@@ -92,11 +106,34 @@ const MOCK: MyBookings = {
       clientName: 'Marina Costa',
       serviceType: 'evento',
       eventDate: new Date(Date.now() + 3 * 86400000).toISOString(),
+      createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
       guestsCount: 12,
       address: 'Alameda dos Ipês, 45',
       totalPrice: 480,
       status: 'solicitado',
     },
+  ],
+};
+
+const MOCK_EARNINGS: ChefEarningsSummary = {
+  totalThisMonth: 3200,
+  totalLastMonth: 2750,
+  completedJobs: 12,
+  pendingJobs: 2,
+  avgRating: 4.8,
+  monthlyData: [
+    { label: 'jan', value: 1800 },
+    { label: 'fev', value: 2200 },
+    { label: 'mar', value: 1450 },
+    { label: 'abr', value: 2750 },
+    { label: 'mai', value: 2750 },
+    { label: 'jun', value: 3200 },
+  ],
+  recentJobs: [
+    { id: 'bk-r1', clientName: 'Marina Costa',   date: new Date(Date.now() - 2  * 86400000).toISOString(), amount: 600 },
+    { id: 'bk-r2', clientName: 'João Pereira',    date: new Date(Date.now() - 9  * 86400000).toISOString(), amount: 900 },
+    { id: 'bk-r3', clientName: 'Ana Beatriz',     date: new Date(Date.now() - 16 * 86400000).toISOString(), amount: 750 },
+    { id: 'bk-r4', clientName: 'Carlos Melo',     date: new Date(Date.now() - 23 * 86400000).toISOString(), amount: 950 },
   ],
 };
 
@@ -201,6 +238,7 @@ export async function getBookingById(id: string): Promise<BookingDetail | null> 
     clientName: (data.client as any)?.full_name ?? 'Cliente',
     serviceType: data.service_type,
     contractDate: data.created_at,
+    createdAt: data.created_at,
     eventDate: data.event_date,
     eventEndDate: (data as any).event_end_date ?? undefined,
     guestsCount: data.guests_count,
@@ -259,11 +297,11 @@ export async function getMyBookings(): Promise<MyBookings> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { asClient: [], asChef: [] };
 
-  // Como cliente: agendamentos que eu contratei (nome do chef vem do perfil).
+  // Como cliente: agendamentos que eu contratei (nome e avatar do chef vem do perfil).
   const { data: clientRows } = await supabase
     .from('bookings')
     .select(
-      'id, chef_id, service_type, event_date, guests_count, address, total_price, status, chef_profiles ( profiles ( full_name ) )',
+      'id, chef_id, service_type, event_date, created_at, guests_count, address, total_price, status, chef_profiles ( profiles ( full_name, avatar_url ) )',
     )
     .eq('client_id', auth.user.id)
     .order('event_date', { ascending: true });
@@ -280,7 +318,7 @@ export async function getMyBookings(): Promise<MyBookings> {
     const { data } = await supabase
       .from('bookings')
       .select(
-        'id, chef_id, service_type, event_date, guests_count, address, total_price, status, client:profiles!bookings_client_id_fkey ( full_name )',
+        'id, chef_id, service_type, event_date, created_at, guests_count, address, total_price, status, client:profiles!bookings_client_id_fkey ( full_name, avatar_url )',
       )
       .eq('chef_id', myChef.id)
       .order('event_date', { ascending: true });
@@ -294,10 +332,12 @@ export async function getMyBookings(): Promise<MyBookings> {
     clientName: 'Você',
     serviceType: r.service_type,
     eventDate: r.event_date,
+    createdAt: r.created_at,
     guestsCount: r.guests_count,
     address: r.address,
     totalPrice: Number(r.total_price),
     status: r.status,
+    counterpartAvatarUrl: r.chef_profiles?.profiles?.avatar_url ?? undefined,
   });
 
   const mapChef = (r: any): BookingListItem => ({
@@ -307,14 +347,89 @@ export async function getMyBookings(): Promise<MyBookings> {
     clientName: r.client?.full_name ?? 'Cliente',
     serviceType: r.service_type,
     eventDate: r.event_date,
+    createdAt: r.created_at,
     guestsCount: r.guests_count,
     address: r.address,
     totalPrice: Number(r.total_price),
     status: r.status,
+    counterpartAvatarUrl: r.client?.avatar_url ?? undefined,
   });
 
   return {
     asClient: (clientRows ?? []).map(mapClient),
     asChef: chefRows.map(mapChef),
+  };
+}
+
+/** Resumo financeiro do chef: ganhos, histórico mensal e trabalhos recentes. */
+export async function getChefEarnings(): Promise<ChefEarningsSummary | null> {
+  if (!isSupabaseConfigured) {
+    await delay();
+    return MOCK_EARNINGS;
+  }
+
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return null;
+
+  const { data: myChef } = await supabase
+    .from('chef_profiles')
+    .select('id, rating_avg')
+    .eq('profile_id', auth.user.id)
+    .maybeSingle();
+
+  if (!myChef) return null;
+
+  const { data: allJobs } = await supabase
+    .from('bookings')
+    .select('id, total_price, status, event_date, client:profiles!bookings_client_id_fkey ( full_name, avatar_url )')
+    .eq('chef_id', myChef.id)
+    .order('event_date', { ascending: false });
+
+  if (!allJobs) return null;
+
+  const now = new Date();
+  const thisMonth = now.getMonth();
+  const thisYear = now.getFullYear();
+  const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+  const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+
+  const completed = allJobs.filter((j) => j.status === 'concluido');
+  const pending   = allJobs.filter((j) => ['solicitado', 'confirmado', 'em_andamento'].includes(j.status));
+
+  const totalThisMonth = completed
+    .filter((j) => { const d = new Date(j.event_date); return d.getMonth() === thisMonth && d.getFullYear() === thisYear; })
+    .reduce((sum, j) => sum + Number(j.total_price), 0);
+
+  const totalLastMonth = completed
+    .filter((j) => { const d = new Date(j.event_date); return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear; })
+    .reduce((sum, j) => sum + Number(j.total_price), 0);
+
+  const monthlyData = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now);
+    d.setMonth(d.getMonth() - (5 - i));
+    const m = d.getMonth();
+    const y = d.getFullYear();
+    const value = completed
+      .filter((j) => { const jd = new Date(j.event_date); return jd.getMonth() === m && jd.getFullYear() === y; })
+      .reduce((sum, j) => sum + Number(j.total_price), 0);
+    return { label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''), value };
+  });
+
+  const recentJobs = completed.slice(0, 5).map((j) => ({
+    id: j.id,
+    clientName: (j.client as any)?.full_name ?? 'Cliente',
+    date: j.event_date,
+    amount: Number(j.total_price),
+    avatarUrl: (j.client as any)?.avatar_url ?? undefined,
+  }));
+
+  return {
+    totalThisMonth,
+    totalLastMonth,
+    completedJobs: completed.length,
+    pendingJobs: pending.length,
+    avgRating: myChef.rating_avg ?? 0,
+    monthlyData,
+    recentJobs,
   };
 }

@@ -129,6 +129,13 @@ export default function AgendarScreen() {
     setSelectingEnd(false);
   }, [serviceType]);
 
+  // Sincroniza duração com as datas selecionadas (para sugestões)
+  useEffect(() => {
+    if (startDate && endDate) {
+      setDesiredDuration(daysBetween(startDate, endDate));
+    }
+  }, [startDate, endDate]);
+
   // ─── Cálculo de preço ────────────────────────────────────────────────────
 
   const numDays = useMemo(() => {
@@ -421,23 +428,37 @@ export default function AgendarScreen() {
           </View>
         )}
 
-        {/* ── Sugestão de datas (apenas modo evento) ── */}
+        {/* ── Duração e sugestões (apenas modo evento) ── */}
         {serviceType === 'evento' && (
           <>
-            <Text style={[styles.section, { marginTop: 28 }]}>Duração desejada</Text>
-            <View style={styles.durationRow}>
-              <TouchableOpacity style={styles.durationBtn}
-                onPress={() => setDesiredDuration((d) => Math.max(1, d - 1))} hitSlop={10}>
-                <FontAwesome name="minus" size={14} color={c.cream} />
-              </TouchableOpacity>
-              <Text style={styles.durationValue}>{desiredDuration} {desiredDuration === 1 ? 'dia' : 'dias'}</Text>
-              <TouchableOpacity style={styles.durationBtn}
-                onPress={() => setDesiredDuration((d) => d + 1)} hitSlop={10}>
-                <FontAwesome name="plus" size={14} color={c.cream} />
-              </TouchableOpacity>
-            </View>
+            {startDate && endDate ? (
+              // Quando datas já foram selecionadas: mostra leitura automática
+              <View style={styles.durationDisplay}>
+                <FontAwesome name="calendar-check-o" size={15} color={c.success} />
+                <Text style={styles.durationDisplayText}>
+                  {numDays} {numDays === 1 ? 'dia' : 'dias'} de evento selecionados
+                </Text>
+              </View>
+            ) : (
+              // Quando nenhuma data selecionada: stepper para filtrar sugestões
+              <>
+                <Text style={[styles.section, { marginTop: 28 }]}>Sugerir datas para</Text>
+                <Text style={styles.durationHint}>Ajuste o número de dias para ver sugestões disponíveis</Text>
+                <View style={styles.durationRow}>
+                  <TouchableOpacity style={styles.durationBtn}
+                    onPress={() => setDesiredDuration((d) => Math.max(1, d - 1))} hitSlop={10}>
+                    <FontAwesome name="minus" size={14} color={c.cream} />
+                  </TouchableOpacity>
+                  <Text style={styles.durationValue}>{desiredDuration} {desiredDuration === 1 ? 'dia' : 'dias'}</Text>
+                  <TouchableOpacity style={styles.durationBtn}
+                    onPress={() => setDesiredDuration((d) => d + 1)} hitSlop={10}>
+                    <FontAwesome name="plus" size={14} color={c.cream} />
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
 
-            {suggestions.length > 0 && (
+            {suggestions.length > 0 && !(startDate && endDate) && (
               <>
                 <Text style={styles.section}>Datas sugeridas com melhor custo-benefício</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsScroll}
@@ -595,6 +616,13 @@ const makeStyles = (c: Palette) =>
     selectedText: { fontSize: 14, color: c.cream, fontWeight: '600' },
 
     // Duração
+    durationDisplay: {
+      flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20, marginBottom: 4,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.success + '60',
+      borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
+    },
+    durationDisplayText: { fontSize: 15, fontWeight: '700', color: c.cream },
+    durationHint: { fontSize: 12, color: c.muted, marginBottom: 10 },
     durationRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 8, alignSelf: 'flex-start' },
     durationBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
     durationValue: { fontSize: 18, fontWeight: '700', color: c.cream, minWidth: 70, textAlign: 'center' },

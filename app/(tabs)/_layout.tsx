@@ -36,6 +36,10 @@ export default function TabsLayout() {
         options={{ title: 'Agenda', tabBarIcon: ({ color, size }) => <FontAwesome name="calendar" size={size ?? 22} color={color} /> }}
       />
       <Tabs.Screen
+        name="carteira"
+        options={{ title: 'Carteira', tabBarIcon: ({ color, size }) => <FontAwesome name="dollar" size={size ?? 22} color={color} /> }}
+      />
+      <Tabs.Screen
         name="chat"
         options={{ title: 'Chat', tabBarIcon: ({ color, size }) => <FontAwesome name="comments" size={size ?? 22} color={color} /> }}
       />
