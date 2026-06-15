@@ -43,6 +43,7 @@ export interface BookingListItem {
   address: string;
   totalPrice: number;
   status: BookingStatus;
+  paymentStatus?: string; // 'pendente' | 'pago' | 'estornado'
   counterpartAvatarUrl?: string;
 }
 
@@ -64,6 +65,7 @@ export interface BookingDetail extends BookingListItem {
   contractDate: string;  // quando o pedido foi criado (created_at)
   eventEndDate?: string; // data fim para eventos multi-dia
   notes?: string;
+  paymentStatus?: string; // 'pendente' | 'pago' | 'estornado'
 }
 
 export interface MyBookings {
@@ -281,7 +283,7 @@ export async function getBookingById(id: string): Promise<BookingDetail | null> 
     .from('bookings')
     .select(`
       id, client_id, chef_id, service_type, event_date, event_end_date, created_at,
-      guests_count, address, notes, total_price, status,
+      guests_count, address, notes, total_price, status, payment_status,
       chef_profiles ( profile_id, profiles ( full_name ) ),
       client:profiles!bookings_client_id_fkey ( full_name )
     `)
@@ -307,6 +309,7 @@ export async function getBookingById(id: string): Promise<BookingDetail | null> 
     notes: data.notes ?? undefined,
     totalPrice: Number(data.total_price),
     status: data.status,
+    paymentStatus: (data as any).payment_status ?? 'pendente',
   };
 }
 
@@ -372,7 +375,7 @@ export async function getMyBookings(): Promise<MyBookings> {
   const { data: clientRows } = await supabase
     .from('bookings')
     .select(
-      'id, chef_id, service_type, event_date, created_at, guests_count, address, total_price, status, chef_profiles ( profiles ( full_name, avatar_url ) )',
+      'id, chef_id, service_type, event_date, created_at, guests_count, address, total_price, status, payment_status, chef_profiles ( profiles ( full_name, avatar_url ) )',
     )
     .eq('client_id', auth.user.id)
     .order('event_date', { ascending: true });
@@ -389,7 +392,7 @@ export async function getMyBookings(): Promise<MyBookings> {
     const { data } = await supabase
       .from('bookings')
       .select(
-        'id, chef_id, service_type, event_date, created_at, guests_count, address, total_price, status, client:profiles!bookings_client_id_fkey ( full_name, avatar_url )',
+        'id, chef_id, service_type, event_date, created_at, guests_count, address, total_price, status, payment_status, client:profiles!bookings_client_id_fkey ( full_name, avatar_url )',
       )
       .eq('chef_id', myChef.id)
       .order('event_date', { ascending: true });
@@ -408,6 +411,7 @@ export async function getMyBookings(): Promise<MyBookings> {
     address: r.address,
     totalPrice: Number(r.total_price),
     status: r.status,
+    paymentStatus: r.payment_status ?? 'pendente',
     counterpartAvatarUrl: r.chef_profiles?.profiles?.avatar_url ?? undefined,
   });
 
@@ -423,6 +427,7 @@ export async function getMyBookings(): Promise<MyBookings> {
     address: r.address,
     totalPrice: Number(r.total_price),
     status: r.status,
+    paymentStatus: r.payment_status ?? 'pendente',
     counterpartAvatarUrl: r.client?.avatar_url ?? undefined,
   });
 
