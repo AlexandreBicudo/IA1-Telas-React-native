@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 
 import { authErrorMessage, signUp } from '@/services/authService';
-import type { UserRole } from '@/types/database';
 
 const COLORS = {
   dark: '#0F0F12',
@@ -32,7 +31,6 @@ export default function CadastroScreen() {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
-  const [role, setRole] = useState<UserRole>('cliente');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -46,7 +44,7 @@ export default function CadastroScreen() {
         email: email.trim(),
         password: senha,
         fullName: nome.trim(),
-        role,
+        role: 'cliente',
       });
       if (!result.mock && !result.session) {
         // Confirmação de e-mail ativada: não há sessão ainda.
@@ -78,29 +76,6 @@ export default function CadastroScreen() {
         />
         <Text style={styles.titulo}>Junte-se à Elite</Text>
         <Text style={styles.subtitulo}>Crie sua conta SeuChefe Gourmet.</Text>
-
-        {/* Seleção de papel */}
-        <Text style={styles.label}>EU SOU</Text>
-        <View style={styles.roleRow}>
-          <TouchableOpacity
-            style={[styles.roleBtn, role === 'cliente' && styles.roleBtnActive]}
-            onPress={() => setRole('cliente')}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.roleText, role === 'cliente' && styles.roleTextActive]}>
-              Cliente
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.roleBtn, role === 'chef' && styles.roleBtnActive]}
-            onPress={() => setRole('chef')}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.roleText, role === 'chef' && styles.roleTextActive]}>
-              Chef / Cozinheiro
-            </Text>
-          </TouchableOpacity>
-        </View>
 
         <Text style={styles.label}>NOME COMPLETO</Text>
         <View style={styles.inputWrapper}>
@@ -205,33 +180,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: 8,
     fontWeight: '600',
-  },
-  roleRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 18,
-  },
-  roleBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  roleBtnActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary,
-  },
-  roleText: {
-    fontSize: 13,
-    color: COLORS.muted,
-    fontWeight: '600',
-  },
-  roleTextActive: {
-    color: COLORS.dark,
   },
   inputWrapper: {
     flexDirection: 'row',

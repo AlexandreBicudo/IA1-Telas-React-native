@@ -33,11 +33,11 @@ export async function getOrCreateConversation(bookingId: string): Promise<string
     .maybeSingle();
   if (!booking) return null;
 
+  // Busca por booking_id para garantir que cada contrato tem seu próprio chat
   const { data: existing } = await supabase
     .from('conversations')
     .select('id')
-    .eq('client_id', booking.client_id)
-    .eq('chef_id', booking.chef_id)
+    .eq('booking_id', bookingId)
     .maybeSingle();
   if (existing) return existing.id;
 

@@ -1,6 +1,6 @@
 import { FontAwesome } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
-import { useRouter, type Href } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -66,6 +66,9 @@ export default function CatalogoScreen() {
     const id = setTimeout(load, 300);
     return () => clearTimeout(id);
   }, [load]);
+
+  // Recarrega ao voltar para a aba (ex: após criar/editar perfil)
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const clearFilters = () => {
     setSpecialty(null);

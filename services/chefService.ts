@@ -91,13 +91,17 @@ const delay = (ms = 250) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function searchChefs(filters: ChefSearchFilters = {}): Promise<ChefListing[]> {
   if (!isSupabaseConfigured) {
     await delay();
-    return applyFilters(MOCK_CHEFS, filters);
+    // Respeita o flag is_available como "visível no catálogo"
+    return applyFilters(MOCK_CHEFS.filter((c) => c.isAvailable), filters);
   }
 
-  const { data, error } = await supabase.from('chef_profiles').select(CHEF_SELECT);
+  const { data, error } = await supabase
+    .from('chef_profiles')
+    .select(CHEF_SELECT)
+    .eq('is_available', true); // Apenas chefs com visibilidade ativa
   if (error) {
     console.warn('[chefService] erro ao buscar chefs, usando mock:', error.message);
-    return applyFilters(MOCK_CHEFS, filters);
+    return applyFilters(MOCK_CHEFS.filter((c) => c.isAvailable), filters);
   }
   return applyFilters((data as unknown as ChefRow[]).map(mapRow), filters);
 }

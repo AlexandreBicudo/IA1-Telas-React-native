@@ -31,12 +31,19 @@ const STATUS_UI: Record<BookingStatus, { label: string; icon: string }> = {
   cancelado:     { label: 'Cancelado',              icon: 'times-circle' },
 };
 
+// Passos do progresso na ordem cronológica
+const STATUS_STEPS: BookingStatus[] = ['solicitado', 'confirmado', 'em_andamento', 'concluido'];
+
 function statusColor(status: BookingStatus, c: Palette) {
   const map: Record<BookingStatus, string> = {
     solicitado: c.warning, confirmado: c.success, em_andamento: c.primary,
-    concluido: c.muted, cancelado: c.danger,
+    concluido: c.primary, cancelado: c.danger,
   };
   return map[status];
+}
+
+function getInitials(name: string) {
+  return name.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 }
 
 export default function AgendamentoDetailScreen() {
@@ -61,7 +68,6 @@ export default function AgendamentoDetailScreen() {
   const [submittingReview, setSubmittingReview] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  // Carrega booking e verifica se já avaliou
   useEffect(() => {
     let active = true;
     Promise.all([getBookingById(bookingId), hasReviewed(bookingId)]).then(([b, alreadyReviewed]) => {
@@ -70,7 +76,6 @@ export default function AgendamentoDetailScreen() {
     return () => { active = false; };
   }, [bookingId]);
 
-  // Carrega conversa + mensagens
   useEffect(() => {
     if (!bookingId) return;
     let unsub: () => void = () => {};
@@ -79,7 +84,15 @@ export default function AgendamentoDetailScreen() {
       setConvId(cid);
       getMessages(cid).then(setMessages);
       unsub = subscribeToMessages(cid, (msg) => {
-        setMessages((prev) => [...prev, msg]);
+        setMessages((prev) => {
+          // Remove o otimista (local-*) se chegou o real com mesmo conteúdo
+          const base = msg.isMine
+            ? prev.filter((m) => !(m.id.startsWith('local-') && m.content === msg.content))
+            : prev;
+          // Ignora se já existe pelo id (proteção contra reconexão)
+          if (base.some((m) => m.id === msg.id)) return base;
+          return [...base, msg];
+        });
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
       });
     });
@@ -144,7 +157,6 @@ export default function AgendamentoDetailScreen() {
     try {
       setSending(true);
       await sendMessage(convId, text);
-      // Otimistic update (Realtime pode não estar ativado)
       setMessages((prev) => [
         ...prev,
         { id: `local-${Date.now()}`, senderId: 'me', senderName: 'Você', content: text, createdAt: new Date().toISOString(), isMine: true },
@@ -174,6 +186,8 @@ export default function AgendamentoDetailScreen() {
 
   const sc = statusColor(booking.status, c);
   const sv = STATUS_UI[booking.status];
+  const isCancelled = booking.status === 'cancelado';
+  const currentStepIdx = isCancelled ? -1 : STATUS_STEPS.indexOf(booking.status);
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}>
@@ -222,31 +236,69 @@ export default function AgendamentoDetailScreen() {
             <FontAwesome name="chevron-left" size={18} color={c.cream} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>CONTRATO</Text>
-          <View style={[styles.statusPill, { borderColor: sc }]}>
-            <FontAwesome name={sv.icon as any} size={10} color={sc} />
-            <Text style={[styles.statusText, { color: sc }]}>{sv.label}</Text>
-          </View>
+          <View style={{ width: 30 }} />
+        </View>
+
+        {/* Faixa de status */}
+        <View style={[styles.statusBanner, { backgroundColor: sc + '18', borderBottomColor: sc + '50' }]}>
+          <FontAwesome name={sv.icon as any} size={14} color={sc} />
+          <Text style={[styles.statusBannerText, { color: sc }]}>{sv.label.toUpperCase()}</Text>
         </View>
 
         <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {/* Partes */}
-          <Panel style={styles.card}>
-            <Row icon="user-circle-o" label={role === 'client' ? 'CHEF' : 'CLIENTE'} value={role === 'client' ? booking.chefName : booking.clientName} styles={styles} c={c} bold />
-            {role === 'chef' && <Row icon="user" label="CLIENTE" value={booking.clientName} styles={styles} c={c} />}
-          </Panel>
 
-          {/* Detalhes */}
-          <Panel style={styles.card}>
-            <Row icon="calendar" label="DATA" value={fmtDate(booking.eventDate)} styles={styles} c={c} />
-            <Row icon="cutlery" label="TIPO" value={booking.serviceType === 'diaria' ? 'Diária' : 'Evento'} styles={styles} c={c} />
-            <Row icon="users" label="CONVIDADOS" value={`${booking.guestsCount} pessoas`} styles={styles} c={c} />
-            <Row icon="map-marker" label="LOCAL" value={booking.address} styles={styles} c={c} />
-            {booking.notes ? <Row icon="sticky-note-o" label="OBSERVAÇÕES" value={booking.notes} styles={styles} c={c} /> : null}
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>TOTAL</Text>
-              <Text style={styles.priceValue}>R$ {booking.totalPrice.toFixed(2)}</Text>
+          {/* Card das partes contratantes */}
+          <Panel style={styles.partiesCard}>
+            <Text style={[styles.sectionLabel, { marginBottom: 16 }]}>PARTES DO CONTRATO</Text>
+            <View style={styles.partiesRow}>
+              <PartyBubble name={booking.clientName} label="CLIENTE" color={c.primary} textColor={c.onPrimary} c={c} />
+              <View style={[styles.partiesSep, { borderColor: c.border }]}>
+                <FontAwesome name="exchange" size={13} color={c.hint} />
+              </View>
+              <PartyBubble name={booking.chefName} label="CHEF" color={c.success} textColor="#fff" c={c} />
             </View>
           </Panel>
+
+          {/* Barra de progresso do status (só para fluxos não cancelados) */}
+          {!isCancelled && (
+            <View style={styles.progressBar}>
+              {STATUS_STEPS.map((step, idx) => {
+                const done = idx <= currentStepIdx;
+                const active = idx === currentStepIdx;
+                const stepColor = done ? c.primary : c.border;
+                return (
+                  <React.Fragment key={step}>
+                    <View style={[styles.progressDot, { backgroundColor: stepColor, borderColor: stepColor,
+                      transform: [{ scale: active ? 1.3 : 1 }] }]}>
+                      {done && <FontAwesome name="check" size={8} color={c.onPrimary} />}
+                    </View>
+                    {idx < STATUS_STEPS.length - 1 && (
+                      <View style={[styles.progressLine, { backgroundColor: idx < currentStepIdx ? c.primary : c.border }]} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Detalhes do agendamento */}
+          <Panel style={styles.card}>
+            <Text style={styles.sectionLabel}>DETALHES DO SERVIÇO</Text>
+            <DetailRow icon="file-text-o" label="CONTRATO CRIADO EM" value={fmtDateTime(booking.contractDate)} c={c} styles={styles} />
+            <DetailRow icon="calendar" label="DATA DO EVENTO" value={fmtDate(booking.eventDate)} c={c} styles={styles} />
+            <DetailRow icon="cutlery" label="TIPO" value={booking.serviceType === 'diaria' ? 'Diária' : 'Evento especial'} c={c} styles={styles} />
+            <DetailRow icon="users" label="CONVIDADOS" value={`${booking.guestsCount} pessoa${booking.guestsCount !== 1 ? 's' : ''}`} c={c} styles={styles} />
+            <DetailRow icon="map-marker" label="LOCAL" value={booking.address} c={c} styles={styles} />
+            {booking.notes ? <DetailRow icon="sticky-note-o" label="OBSERVAÇÕES" value={booking.notes} c={c} styles={styles} /> : null}
+          </Panel>
+
+          {/* Callout do preço total */}
+          <View style={[styles.priceCallout, { backgroundColor: c.primary + '14', borderColor: c.primary + '50' }]}>
+            <Text style={[styles.priceCalloutLabel, { color: c.primary }]}>VALOR TOTAL DO SERVIÇO</Text>
+            <Text style={[styles.priceCalloutValue, { color: c.primary }]}>
+              R$ {booking.totalPrice.toFixed(2)}
+            </Text>
+          </View>
 
           {/* Ações */}
           {actioning ? (
@@ -284,7 +336,10 @@ export default function AgendamentoDetailScreen() {
           )}
 
           {/* Chat */}
-          <Text style={styles.chatTitle}>MENSAGENS</Text>
+          <View style={[styles.chatHeader, { borderTopColor: c.border }]}>
+            <FontAwesome name="comments" size={14} color={c.primary} />
+            <Text style={styles.chatTitle}>MENSAGENS</Text>
+          </View>
           {messages.length === 0 ? (
             <Text style={styles.muted}>Nenhuma mensagem ainda. Diga olá!</Text>
           ) : (
@@ -320,13 +375,31 @@ export default function AgendamentoDetailScreen() {
   );
 }
 
-function Row({ icon, label, value, styles, c, bold }: { icon: any; label: string; value: string; styles: any; c: Palette; bold?: boolean }) {
+// ---------- Componentes auxiliares ----------
+
+function PartyBubble({ name, label, color, textColor, c }: { name: string; label: string; color: string; textColor: string; c: Palette }) {
+  const initials = getInitials(name);
+  return (
+    <View style={{ alignItems: 'center', flex: 1 }}>
+      <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: color + '22',
+                     borderWidth: 2, borderColor: color, alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+        <Text style={{ color, fontWeight: '700', fontSize: 19, fontFamily: brandFont }}>{initials}</Text>
+      </View>
+      <Text style={{ fontSize: 9, color, letterSpacing: 1.5, fontWeight: '700', marginBottom: 4 }}>{label}</Text>
+      <Text style={{ fontSize: 14, color: c.cream, fontWeight: '600', textAlign: 'center' }} numberOfLines={2}>{name}</Text>
+    </View>
+  );
+}
+
+function DetailRow({ icon, label, value, styles, c }: { icon: any; label: string; value: string; styles: any; c: Palette }) {
   return (
     <View style={styles.detailRow}>
-      <FontAwesome name={icon} size={14} color={c.primary} style={{ width: 18 }} />
+      <View style={[styles.detailIconWrap, { backgroundColor: c.primary + '18' }]}>
+        <FontAwesome name={icon} size={13} color={c.primary} />
+      </View>
       <View style={styles.detailText}>
         <Text style={styles.detailLabel}>{label}</Text>
-        <Text style={[styles.detailValue, bold && { fontWeight: '700', fontSize: 16 }]}>{value}</Text>
+        <Text style={styles.detailValue}>{value}</Text>
       </View>
     </View>
   );
@@ -340,17 +413,33 @@ function ActionBtn({ label, color, onPress, styles }: { label: string; color: st
   );
 }
 
+/** Formata uma data sem deslocamento de fuso — lê YYYY-MM-DD diretamente. */
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('pt-BR', {
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+  });
 }
+
+/** Formata data + hora a partir de um ISO completo (usa hora local do dispositivo). */
+function fmtDateTime(iso: string) {
+  const dt = new Date(iso);
+  return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    + ' às ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
+
+// ---------- Estilos ----------
 
 const makeStyles = (c: Palette) =>
   StyleSheet.create({
     flex: { flex: 1 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+    // Header
     header: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -359,22 +448,81 @@ const makeStyles = (c: Palette) =>
       paddingTop: 16,
       paddingBottom: 12,
     },
-    headerTitle: { fontSize: 13, letterSpacing: 2, fontWeight: '700', color: c.cream, fontFamily: brandFont },
-    statusPill: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-    statusText: { fontSize: 11, fontWeight: '600' },
-    scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 8 },
+    headerTitle: { fontSize: 13, letterSpacing: 3, fontWeight: '700', color: c.cream, fontFamily: brandFont },
+
+    // Status banner
+    statusBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+    },
+    statusBannerText: { fontSize: 12, fontWeight: '700', letterSpacing: 1.5 },
+
+    // Scroll
+    scroll: { paddingHorizontal: GSpacing.screen, paddingBottom: 8, paddingTop: 16 },
+
+    // Parties card
+    partiesCard: { marginBottom: 12, paddingVertical: 20 },
+    partiesRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
+    partiesSep: {
+      width: 34, height: 34, borderRadius: 17,
+      borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+    },
+
+    // Progress bar
+    progressBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12,
+      paddingHorizontal: 24,
+    },
+    progressDot: {
+      width: 20, height: 20, borderRadius: 10,
+      borderWidth: 1.5,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    progressLine: { flex: 1, height: 2, marginHorizontal: 4 },
+
+    // Section label
+    sectionLabel: { fontSize: 10, color: c.primary, letterSpacing: 2, fontWeight: '700', marginBottom: 14 },
+
+    // Details card
     card: { marginBottom: 12 },
-    detailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 12 },
-    detailText: { flex: 1 },
-    detailLabel: { fontSize: 10, color: c.primary, letterSpacing: 1.5, fontWeight: '600' },
-    detailValue: { fontSize: 14, color: c.cream, marginTop: 2 },
-    priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12, marginTop: 4 },
-    priceLabel: { fontSize: 11, color: c.primary, letterSpacing: 2, fontWeight: '700' },
-    priceValue: { fontSize: 20, fontWeight: '700', color: c.primary, fontFamily: brandFont },
+    detailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
+    detailIconWrap: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+    detailText: { flex: 1, justifyContent: 'center' },
+    detailLabel: { fontSize: 10, color: c.primary, letterSpacing: 1.5, fontWeight: '600', marginBottom: 2 },
+    detailValue: { fontSize: 14, color: c.cream, lineHeight: 20 },
+
+    // Price callout
+    priceCallout: {
+      borderWidth: 1,
+      borderRadius: GSpacing.radius,
+      padding: 20,
+      marginBottom: 16,
+      alignItems: 'center',
+    },
+    priceCalloutLabel: { fontSize: 10, letterSpacing: 2, fontWeight: '700', marginBottom: 8 },
+    priceCalloutValue: { fontSize: 36, fontWeight: '700', fontFamily: brandFont },
+
+    // Actions
     actions: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-    actionBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+    actionBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
     actionBtnText: { fontSize: 14, fontWeight: '700' },
-    chatTitle: { fontSize: 11, color: c.primary, letterSpacing: 2, fontWeight: '600', textTransform: 'uppercase', marginBottom: 14 },
+
+    // Review
+    reviewBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: c.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 16, justifyContent: 'center' },
+    reviewBtnText: { fontSize: 15, fontWeight: '700', color: c.primary },
+    reviewedBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.primary, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16, marginBottom: 16 },
+    reviewedText: { fontSize: 14, color: c.primary, fontWeight: '600' },
+
+    // Chat
+    chatHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, paddingTop: 18, marginTop: 4, marginBottom: 14 },
+    chatTitle: { fontSize: 11, color: c.primary, letterSpacing: 2, fontWeight: '600', textTransform: 'uppercase' },
     muted: { fontSize: 14, color: c.muted },
     bubble: { maxWidth: '80%', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 8 },
     bubbleMine: { alignSelf: 'flex-end', backgroundColor: c.primary },
@@ -383,6 +531,8 @@ const makeStyles = (c: Palette) =>
     bubbleText: { fontSize: 14, color: c.cream, lineHeight: 20 },
     bubbleTextMine: { color: '#fff' },
     bubbleTime: { fontSize: 10, color: c.muted, marginTop: 4, alignSelf: 'flex-end' },
+
+    // Input
     inputBar: {
       flexDirection: 'row',
       alignItems: 'flex-end',
@@ -407,12 +557,8 @@ const makeStyles = (c: Palette) =>
     },
     sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' },
     sendBtnDisabled: { opacity: 0.4 },
-    // Avaliação
-    reviewBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: c.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 16, justifyContent: 'center' },
-    reviewBtnText: { fontSize: 15, fontWeight: '700', color: c.primary },
-    reviewedBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.primary, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16, marginBottom: 16 },
-    reviewedText: { fontSize: 14, color: c.primary, fontWeight: '600' },
-    // Modal
+
+    // Modal de avaliação
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
     modalBox: { width: '100%', borderRadius: 16, borderWidth: 1, padding: 24 },
     modalTitle: { fontSize: 16, fontWeight: '700', color: c.cream, textAlign: 'center', marginBottom: 20 },

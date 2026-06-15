@@ -24,6 +24,7 @@ export interface BookingListItem {
 export interface BookingDetail extends BookingListItem {
   clientId: string;
   chefProfileId: string; // chef_profiles.profile_id (auth uid do chef)
+  contractDate: string;  // quando o pedido foi criado (created_at)
   notes?: string;
 }
 
@@ -142,7 +143,7 @@ export async function getBookingById(id: string): Promise<BookingDetail | null> 
     const all = [...MOCK.asClient, ...MOCK.asChef];
     const found = all.find((b) => b.id === id);
     if (!found) return null;
-    return { ...found, clientId: 'mock-user', chefProfileId: 'mock-chef-profile' };
+    return { ...found, clientId: 'mock-user', chefProfileId: 'mock-chef-profile', contractDate: new Date().toISOString() };
   }
 
   const { data: auth } = await supabase.auth.getUser();
@@ -151,7 +152,7 @@ export async function getBookingById(id: string): Promise<BookingDetail | null> 
   const { data } = await supabase
     .from('bookings')
     .select(`
-      id, client_id, chef_id, service_type, event_date,
+      id, client_id, chef_id, service_type, event_date, created_at,
       guests_count, address, notes, total_price, status,
       chef_profiles ( profile_id, profiles ( full_name ) ),
       client:profiles!bookings_client_id_fkey ( full_name )
@@ -169,6 +170,7 @@ export async function getBookingById(id: string): Promise<BookingDetail | null> 
     chefName: (data.chef_profiles as any)?.profiles?.full_name ?? 'Chef',
     clientName: (data.client as any)?.full_name ?? 'Cliente',
     serviceType: data.service_type,
+    contractDate: data.created_at,
     eventDate: data.event_date,
     guestsCount: data.guests_count,
     address: data.address,

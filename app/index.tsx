@@ -1,6 +1,7 @@
-import { FontAwesome } from '@expo/vector-icons'; // Importação dos ícones
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Alert,
     Image,
@@ -19,6 +20,8 @@ import { GShadow } from '@/constants/gourmet-theme';
 import { AccentBar, GoldButton, ScreenGradient } from '@/components/ui-gourmet';
 import { authErrorMessage, signIn } from '@/services/authService';
 
+const REMEMBERED_EMAIL_KEY = '@seuchefe:rememberedEmail';
+
 const COLORS = {
   dark: '#0F0F12',
   card: '#1B1B20',
@@ -36,6 +39,16 @@ export default function LoginScreen() {
   const [senha, setSenha] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(REMEMBERED_EMAIL_KEY).then((saved) => {
+      if (saved) {
+        setEmail(saved);
+        setRememberMe(true);
+      }
+    });
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !senha) {
@@ -44,6 +57,11 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       await signIn({ email: email.trim(), password: senha });
+      if (rememberMe) {
+        await AsyncStorage.setItem(REMEMBERED_EMAIL_KEY, email.trim());
+      } else {
+        await AsyncStorage.removeItem(REMEMBERED_EMAIL_KEY);
+      }
       router.replace('/catalogo');
     } catch (error) {
       Alert.alert('Erro ao entrar', authErrorMessage(error));
@@ -109,12 +127,17 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.forgotContainer}
-          onPress={() => router.push('/recuperar-senha')}
-        >
-          <Text style={styles.forgotText}>Esqueceu a senha?</Text>
-        </TouchableOpacity>
+        <View style={styles.forgotRow}>
+          <TouchableOpacity style={styles.rememberRow} onPress={() => setRememberMe((v) => !v)} hitSlop={8}>
+            <View style={[styles.checkbox, rememberMe && styles.checkboxOn]}>
+              {rememberMe && <FontAwesome name="check" size={10} color={COLORS.dark} />}
+            </View>
+            <Text style={styles.rememberText}>Lembrar e-mail</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/recuperar-senha')}>
+            <Text style={styles.forgotText}>Esqueceu a senha?</Text>
+          </TouchableOpacity>
+        </View>
 
         <GoldButton
           label="ENTRAR"
@@ -230,10 +253,35 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
     color: COLORS.muted,
   },
-  forgotContainer: {
-    alignSelf: 'flex-end',
+  forgotRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 28,
     marginTop: -8,
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxOn: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  rememberText: {
+    fontSize: 13,
+    color: COLORS.muted,
   },
   forgotText: {
     fontSize: 13,

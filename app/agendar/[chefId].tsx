@@ -42,6 +42,8 @@ export default function AgendarScreen() {
   const [guests, setGuests] = useState('2');
   const [booking, setBooking] = useState(false);
 
+  const isFormReady = Boolean(selectedDate && address.trim() && parseInt(guests, 10) >= 1);
+
   useEffect(() => {
     let active = true;
     Promise.all([getChefAvailableDates(chefId), getChefBookedDates(chefId)]).then(([avail, booked]) => {
@@ -246,6 +248,7 @@ export default function AgendarScreen() {
           icon="check"
           onPress={handleConfirmar}
           loading={booking}
+          disabled={!isFormReady}
           style={styles.cta}
         />
       </ScrollView>
