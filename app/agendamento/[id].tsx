@@ -84,7 +84,15 @@ export default function AgendamentoDetailScreen() {
       setConvId(cid);
       getMessages(cid).then(setMessages);
       unsub = subscribeToMessages(cid, (msg) => {
-        setMessages((prev) => [...prev, msg]);
+        setMessages((prev) => {
+          // Remove o otimista (local-*) se chegou o real com mesmo conteúdo
+          const base = msg.isMine
+            ? prev.filter((m) => !(m.id.startsWith('local-') && m.content === msg.content))
+            : prev;
+          // Ignora se já existe pelo id (proteção contra reconexão)
+          if (base.some((m) => m.id === msg.id)) return base;
+          return [...base, msg];
+        });
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
       });
     });

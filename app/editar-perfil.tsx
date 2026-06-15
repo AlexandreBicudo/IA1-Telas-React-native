@@ -29,6 +29,7 @@ import {
   removePortfolioItem,
   updateAvatarUrl,
   updateChefProfile,
+  updateMyProfile,
   validateChefProfileForActivation,
 } from '@/services/profileService';
 import { pickAndUploadAvatar, pickAndUploadPortfolioPhoto } from '@/services/storageService';
@@ -49,6 +50,8 @@ export default function EditarPerfilScreen() {
   const [isAvailable, setIsAvailable] = useState(false);
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -69,6 +72,8 @@ export default function EditarPerfilScreen() {
         setPortfolio(chef.portfolio ?? []);
       }
       if (account?.avatarUrl) setAvatarUrl(account.avatarUrl);
+      if (account?.city) setCity(account.city);
+      if (account?.state) setState(account.state);
       setLoading(false);
     });
     return () => { active = false; };
@@ -97,6 +102,7 @@ export default function EditarPerfilScreen() {
         yearsExperience: Number(yearsExperience),
         specialties,
         avatarUrl,
+        city,
       });
       if (missing.length > 0) {
         Alert.alert(
@@ -161,14 +167,17 @@ export default function EditarPerfilScreen() {
     if (!headline.trim()) return Alert.alert('Atenção', 'Informe um título profissional.');
     try {
       setSaving(true);
-      await updateChefProfile(chefId, {
-        headline: headline.trim(),
-        bio: bio.trim(),
-        dailyRate: Number(dailyRate) || 0,
-        yearsExperience: Number(yearsExperience) || 0,
-        isAvailable,
-        specialties,
-      });
+      await Promise.all([
+        updateChefProfile(chefId, {
+          headline: headline.trim(),
+          bio: bio.trim(),
+          dailyRate: Number(dailyRate) || 0,
+          yearsExperience: Number(yearsExperience) || 0,
+          isAvailable,
+          specialties,
+        }),
+        updateMyProfile({ city: city.trim(), state: state.trim() }),
+      ]);
       Alert.alert('Pronto!', 'Perfil atualizado com sucesso.', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (error) {
       Alert.alert('Erro ao salvar', authErrorMessage(error));
@@ -186,7 +195,7 @@ export default function EditarPerfilScreen() {
   }
 
   const missingForActivation = validateChefProfileForActivation({
-    headline, bio, dailyRate: Number(dailyRate), yearsExperience: Number(yearsExperience), specialties, avatarUrl,
+    headline, bio, dailyRate: Number(dailyRate), yearsExperience: Number(yearsExperience), specialties, avatarUrl, city,
   });
 
   return (
@@ -271,6 +280,21 @@ export default function EditarPerfilScreen() {
             multiline
             textAlignVertical="top"
           />
+        </View>
+
+        <View style={styles.row}>
+          <View style={[styles.rowItem, { flex: 2 }]}>
+            <Text style={styles.label}>CIDADE</Text>
+            <View style={styles.inputWrapper}>
+              <TextInput style={styles.input} placeholder="São Paulo" placeholderTextColor={c.hint} value={city} onChangeText={setCity} />
+            </View>
+          </View>
+          <View style={styles.rowItem}>
+            <Text style={styles.label}>UF</Text>
+            <View style={styles.inputWrapper}>
+              <TextInput style={styles.input} placeholder="SP" placeholderTextColor={c.hint} value={state} onChangeText={setState} maxLength={2} autoCapitalize="characters" />
+            </View>
+          </View>
         </View>
 
         <View style={styles.row}>

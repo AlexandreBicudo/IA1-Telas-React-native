@@ -91,7 +91,7 @@ export async function activateChefProfile(): Promise<string> {
 
   const { data, error } = await supabase
     .from('chef_profiles')
-    .insert({ profile_id: auth.user.id })
+    .insert({ profile_id: auth.user.id, is_available: false })
     .select('id')
     .single();
   if (error) throw error;
@@ -139,6 +139,7 @@ export function validateChefProfileForActivation(data: {
   yearsExperience: number;
   specialties: string[];
   avatarUrl: string | null;
+  city?: string | null;
 }): string[] {
   const missing: string[] = [];
   if (!data.headline.trim()) missing.push('Título profissional');
@@ -147,6 +148,7 @@ export function validateChefProfileForActivation(data: {
   if (!data.yearsExperience || data.yearsExperience <= 0) missing.push('Anos de experiência');
   if (data.specialties.length === 0) missing.push('Ao menos uma especialidade');
   if (!data.avatarUrl) missing.push('Foto de perfil');
+  if (!data.city?.trim()) missing.push('Cidade onde atua');
   return missing;
 }
 

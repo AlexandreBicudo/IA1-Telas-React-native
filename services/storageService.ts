@@ -1,17 +1,9 @@
-/**
- * Upload de imagens para o Supabase Storage (bucket "avatars").
- *
- * Usa expo-file-system (SDK 54) File.arrayBuffer() — método mais confiável
- * em React Native do que fetch().blob() para uploads no Supabase.
- *
- * Em modo mock devolve um retrato de exemplo sem fazer upload real.
- */
 import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
+import { Alert } from 'react-native';
 
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
-/** Sobe uma foto para o bucket avatars e devolve a URL pública. */
 async function uploadToAvatarsBucket(uri: string, path: string, mimeType: string): Promise<string> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Sessão expirada.');
@@ -25,7 +17,58 @@ async function uploadToAvatarsBucket(uri: string, path: string, mimeType: string
   return `${data.publicUrl}?t=${Date.now()}`;
 }
 
-/** Abre a galeria e faz upload de foto para o portfólio. Retorna URL pública ou null se cancelado. */
+async function uploadAvatarAsset(asset: ImagePicker.ImagePickerAsset): Promise<string> {
+  const mimeType = asset.mimeType ?? 'image/jpeg';
+  if (!isSupabaseConfigured) {
+    return `https://randomuser.me/api/portraits/men/${Math.floor(Math.random() * 99)}.jpg`;
+  }
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new Error('Sessão expirada.');
+  const ext = mimeType === 'image/png' ? 'png' : 'jpg';
+  return uploadToAvatarsBucket(asset.uri, `${auth.user.id}/avatar.${ext}`, mimeType);
+}
+
+async function pickFromGallery(): Promise<string | null> {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== 'granted') throw new Error('Permissão de galeria negada. Habilite nas configurações do dispositivo.');
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.8,
+  });
+  if (result.canceled || !result.assets[0]) return null;
+  return uploadAvatarAsset(result.assets[0]);
+}
+
+async function pickFromCamera(): Promise<string | null> {
+  const { status } = await ImagePicker.requestCameraPermissionsAsync();
+  if (status !== 'granted') throw new Error('Permissão de câmera negada. Habilite nas configurações do dispositivo.');
+  const result = await ImagePicker.launchCameraAsync({
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.8,
+  });
+  if (result.canceled || !result.assets[0]) return null;
+  return uploadAvatarAsset(result.assets[0]);
+}
+
+/** Abre diálogo para escolher galeria ou câmera, faz upload e retorna URL pública. */
+export function pickAndUploadAvatar(): Promise<string | null> {
+  return new Promise((resolve, reject) => {
+    Alert.alert(
+      'Foto de perfil',
+      'Escolha a origem da foto',
+      [
+        { text: 'Tirar selfie', onPress: () => pickFromCamera().then(resolve).catch(reject) },
+        { text: 'Escolher da galeria', onPress: () => pickFromGallery().then(resolve).catch(reject) },
+        { text: 'Cancelar', style: 'cancel', onPress: () => resolve(null) },
+      ],
+    );
+  });
+}
+
+/** Abre a galeria, faz upload e devolve URL pública. Retorna null se cancelado. */
 export async function pickAndUploadPortfolioPhoto(): Promise<string | null> {
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (status !== 'granted') throw new Error('Permissão de galeria negada.');
@@ -49,38 +92,5 @@ export async function pickAndUploadPortfolioPhoto(): Promise<string | null> {
 
   const ext = mimeType === 'image/png' ? 'png' : 'jpg';
   const path = `${auth.user.id}/portfolio/${Date.now()}.${ext}`;
-  return uploadToAvatarsBucket(asset.uri, path, mimeType);
-}
-
-/** Abre a galeria, faz upload e devolve a URL pública. Retorna null se cancelado. */
-export async function pickAndUploadAvatar(): Promise<string | null> {
-  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== 'granted') {
-    throw new Error('Permissão de galeria negada. Habilite nas configurações do dispositivo.');
-  }
-
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
-    allowsEditing: true,
-    aspect: [1, 1],
-    quality: 0.8,
-  });
-
-  if (result.canceled || !result.assets[0]) return null;
-
-  const asset = result.assets[0];
-  const mimeType = asset.mimeType ?? 'image/jpeg';
-
-  // Mock: devolve retrato aleatório sem upload real
-  if (!isSupabaseConfigured) {
-    const n = Math.floor(Math.random() * 99);
-    return `https://randomuser.me/api/portraits/men/${n}.jpg`;
-  }
-
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error('Sessão expirada.');
-
-  const ext = mimeType === 'image/png' ? 'png' : 'jpg';
-  const path = `${auth.user.id}/avatar.${ext}`;
   return uploadToAvatarsBucket(asset.uri, path, mimeType);
 }
