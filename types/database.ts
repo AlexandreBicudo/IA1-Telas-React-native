@@ -105,4 +105,5 @@ export interface ChefSearchFilters {
   minRating?: number | null; // avaliação mínima (0-5)
   maxDailyRate?: number | null; // faixa de preço máxima
   onlyAvailable?: boolean; // apenas disponíveis
+  onlyVerified?: boolean; // apenas chefs com identidade verificada
 }

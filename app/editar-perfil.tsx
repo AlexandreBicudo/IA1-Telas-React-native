@@ -25,6 +25,7 @@ import { useColors, useTheme } from '@/components/theme-context';
 import { SPECIALTIES } from '@/constants/specialties';
 import { authErrorMessage, updateEmail, updatePassword } from '@/services/authService';
 import { getMyChefProfile } from '@/services/chefService';
+import { getMyVerificationStatus, type VerificationRecord } from '@/services/verificationService';
 import {
   addPortfolioItem,
   getMyAccount,
@@ -91,6 +92,8 @@ export default function EditarPerfilScreen() {
   const [tierMaxDays, setTierMaxDays] = useState('');
   const [tierRate, setTierRate] = useState('');
 
+  const [verificationRecord, setVerificationRecord] = useState<VerificationRecord | null | undefined>(undefined);
+
   // ─── Estado ───────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -106,6 +109,7 @@ export default function EditarPerfilScreen() {
 
   useEffect(() => {
     let active = true;
+    getMyVerificationStatus().then((v) => { if (active) setVerificationRecord(v); });
     Promise.all([getMyChefProfile(), getMyAccount()]).then(([chef, account]) => {
       if (!active) return;
       if (account) {
@@ -752,6 +756,44 @@ export default function EditarPerfilScreen() {
               <Text style={styles.addTierText}>Adicionar experiência</Text>
             </TouchableOpacity>
 
+            {/* Card de verificação de identidade */}
+            {verificationRecord !== undefined && (() => {
+              const statusMap = {
+                aprovado: { color: c.success, icon: 'check-circle' as const, label: 'Identidade verificada', body: 'Seu perfil exibe o selo de chef verificado no catálogo.' },
+                pendente: { color: c.warning, icon: 'clock-o' as const, label: 'Verificação em análise', body: 'Documentos recebidos. Resultado em até 48 horas.' },
+                rejeitado: { color: c.danger, icon: 'times-circle' as const, label: 'Verificação rejeitada', body: verificationRecord?.notes ?? 'Reenvie os documentos para nova análise.' },
+              };
+              const noRecord = !verificationRecord;
+              const v = verificationRecord ? statusMap[verificationRecord.status] : null;
+              return (
+                <View style={[styles.verifCard, { borderColor: noRecord ? c.border : (v?.color ?? c.border) + '60' }]}>
+                  <View style={styles.verifHeader}>
+                    <FontAwesome name={noRecord ? 'shield' : (v?.icon ?? 'shield')} size={16} color={noRecord ? c.hint : v?.color} />
+                    <Text style={[styles.verifTitle, { color: noRecord ? c.muted : v?.color }]}>
+                      {noRecord ? 'Verificação de identidade' : v?.label}
+                    </Text>
+                  </View>
+                  <Text style={[styles.verifBody, { color: c.muted }]}>
+                    {noRecord
+                      ? 'Verifique sua identidade para ganhar o selo "Chef Verificado" e aumentar a confiança dos clientes.'
+                      : v?.body}
+                  </Text>
+                  {(noRecord || verificationRecord?.status === 'rejeitado') && (
+                    <TouchableOpacity
+                      style={[styles.verifBtn, { borderColor: noRecord ? c.primary : c.danger }]}
+                      onPress={() => router.push('/verificacao-chef' as any)}
+                      activeOpacity={0.8}
+                    >
+                      <FontAwesome name="arrow-right" size={12} color={noRecord ? c.primary : c.danger} />
+                      <Text style={[styles.verifBtnText, { color: noRecord ? c.primary : c.danger }]}>
+                        {noRecord ? 'Iniciar verificação' : 'Reenviar documentos'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })()}
+
             <GoldButton label="SALVAR PERFIL PROFISSIONAL" onPress={handleSaveProfessional} loading={saving} style={{ marginTop: 24 }} />
           </View>
         )}
@@ -905,6 +947,21 @@ const makeStyles = (c: Palette) =>
       flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4,
     },
     expCardTitle: { flex: 1, fontSize: 13, fontWeight: '600', color: c.cream },
+
+    // Verificação
+    verifCard: {
+      borderWidth: 1.5, borderRadius: GSpacing.radius,
+      padding: 16, marginTop: 24,
+    },
+    verifHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+    verifTitle: { fontSize: 13, fontWeight: '700', flex: 1 },
+    verifBody: { fontSize: 12, lineHeight: 18, marginBottom: 12 },
+    verifBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      borderWidth: 1.5, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14,
+      alignSelf: 'flex-start',
+    },
+    verifBtnText: { fontSize: 13, fontWeight: '700' },
 
     // Modal
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: GSpacing.screen },

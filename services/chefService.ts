@@ -77,7 +77,7 @@ function mapRow(row: ChefRow): ChefListing {
 
 /** Aplica os filtros da busca avançada (mesma lógica para banco e mock). */
 function applyFilters(chefs: ChefListing[], filters: ChefSearchFilters): ChefListing[] {
-  const { query, specialty, minRating, maxDailyRate, onlyAvailable } = filters;
+  const { query, specialty, minRating, maxDailyRate, onlyAvailable, onlyVerified } = filters;
   const term = query?.trim().toLowerCase();
 
   return chefs
@@ -90,6 +90,7 @@ function applyFilters(chefs: ChefListing[], filters: ChefSearchFilters): ChefLis
       if (minRating != null && chef.ratingAvg < minRating) return false;
       if (maxDailyRate != null && chef.dailyRate > maxDailyRate) return false;
       if (onlyAvailable && !chef.isAvailable) return false;
+      if (onlyVerified && chef.verificationStatus !== 'aprovado') return false;
       return true;
     })
     .sort((a, b) => b.ratingAvg - a.ratingAvg);

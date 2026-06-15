@@ -36,6 +36,7 @@ export default function CatalogoScreen() {
   const [maxPrice, setMaxPrice] = useState(MAX_PRICE);
   const [minRating, setMinRating] = useState(0);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
+  const [onlyVerified, setOnlyVerified] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [chefs, setChefs] = useState<ChefListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,8 +47,9 @@ export default function CatalogoScreen() {
     if (maxPrice < MAX_PRICE) n++;
     if (minRating > 0) n++;
     if (onlyAvailable) n++;
+    if (onlyVerified) n++;
     return n;
-  }, [specialty, maxPrice, minRating, onlyAvailable]);
+  }, [specialty, maxPrice, minRating, onlyAvailable, onlyVerified]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,10 +59,11 @@ export default function CatalogoScreen() {
       maxDailyRate: maxPrice < MAX_PRICE ? maxPrice : null,
       minRating: minRating > 0 ? minRating : null,
       onlyAvailable,
+      onlyVerified,
     };
     setChefs(await searchChefs(filters));
     setLoading(false);
-  }, [query, specialty, maxPrice, minRating, onlyAvailable]);
+  }, [query, specialty, maxPrice, minRating, onlyAvailable, onlyVerified]);
 
   useEffect(() => {
     const id = setTimeout(load, 300);
@@ -75,6 +78,7 @@ export default function CatalogoScreen() {
     setMaxPrice(MAX_PRICE);
     setMinRating(0);
     setOnlyAvailable(false);
+    setOnlyVerified(false);
   };
 
   const renderChef = ({ item }: { item: ChefListing }) => {
@@ -216,6 +220,13 @@ export default function CatalogoScreen() {
                     {onlyAvailable && <FontAwesome name="check" size={11} color={c.onPrimary} />}
                   </View>
                   <Text style={styles.availabilityToggleText}>Apenas chefs disponíveis</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.availabilityToggle} onPress={() => setOnlyVerified((v) => !v)} activeOpacity={0.8}>
+                  <View style={[styles.checkbox, onlyVerified && styles.checkboxOn]}>
+                    {onlyVerified && <FontAwesome name="check" size={11} color={c.onPrimary} />}
+                  </View>
+                  <FontAwesome name="check-circle" size={13} color={onlyVerified ? c.primary : c.hint} />
+                  <Text style={styles.availabilityToggleText}>Apenas chefs verificados</Text>
                 </TouchableOpacity>
               </View>
             )}
