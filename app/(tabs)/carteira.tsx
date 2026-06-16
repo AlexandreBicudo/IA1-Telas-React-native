@@ -42,33 +42,42 @@ function trendLabel(curr: number, prev: number) {
 
 // ─── Gráfico de barras ────────────────────────────────────────────────────────
 
-const BAR_HEIGHT = 120;
+const BAR_AREA  = 110; // altura reservada só para as barras
+const VALUE_H   = 18;  // altura da linha de valor acima da barra
+const LABEL_H   = 18;  // altura do rótulo abaixo
 
 function BarChart({ data, c }: { data: { label: string; value: number }[]; c: Palette }) {
   const max = Math.max(...data.map((d) => d.value), 1);
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: BAR_HEIGHT + 28 }}>
+    <View style={{ flexDirection: 'row', gap: 4, height: BAR_AREA + VALUE_H + LABEL_H }}>
       {data.map((d, i) => {
-        const barH = Math.max((d.value / max) * BAR_HEIGHT, d.value > 0 ? 6 : 2);
+        const barH = Math.max((d.value / max) * BAR_AREA, d.value > 0 ? 6 : 3);
         const isCurrent = i === data.length - 1;
         return (
-          <View key={i} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
-            {isCurrent && d.value > 0 && (
-              <Text style={{ fontSize: 10, color: c.primary, fontWeight: '700' }}>
-                {fmtShort(d.value)}
-              </Text>
-            )}
-            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <View key={i} style={{ flex: 1, alignItems: 'center' }}>
+            {/* Área do valor — altura fixa, texto alinhado na base */}
+            <View style={{ height: VALUE_H, justifyContent: 'flex-end', marginBottom: 2 }}>
+              {d.value > 0 && (
+                <Text style={{ fontSize: 9, color: isCurrent ? c.primary : c.muted, fontWeight: '700' }}>
+                  {fmtShort(d.value)}
+                </Text>
+              )}
+            </View>
+            {/* Área da barra — altura fixa, barra cresce de baixo para cima */}
+            <View style={{ height: BAR_AREA, justifyContent: 'flex-end', width: '100%', alignItems: 'center' }}>
               <View
                 style={{
-                  width: '100%',
+                  width: '75%',
                   height: barH,
-                  backgroundColor: isCurrent ? c.primary : c.primary + '40',
-                  borderRadius: 5,
+                  backgroundColor: isCurrent ? c.primary : c.primary + '55',
+                  borderRadius: 4,
                 }}
               />
             </View>
-            <Text style={{ fontSize: 10, color: c.muted }}>{d.label}</Text>
+            {/* Rótulo do mês */}
+            <View style={{ height: LABEL_H, justifyContent: 'center' }}>
+              <Text style={{ fontSize: 9, color: isCurrent ? c.primary : c.muted }}>{d.label}</Text>
+            </View>
           </View>
         );
       })}

@@ -32,8 +32,24 @@ const STATUS_UI: Record<BookingStatus, { label: string; icon: string }> = {
   cancelado:     { label: 'Cancelado',              icon: 'times-circle' },
 };
 
-// Passos do progresso na ordem cronológica
-const STATUS_STEPS: BookingStatus[] = ['solicitado', 'confirmado', 'em_andamento', 'concluido'];
+// Passos exibidos na barra de progresso (inclui etapa virtual de pagamento)
+const PROGRESS_STEPS = [
+  { key: 'solicitado',  label: 'Pedido'    },
+  { key: 'confirmado',  label: 'Aceito'    },
+  { key: 'pagamento',   label: 'Pagamento' },
+  { key: 'servico',     label: 'Serviço'   },
+  { key: 'concluido',   label: 'Concluído' },
+] as const;
+
+function getProgressIdx(status: BookingStatus, paymentStatus?: string): number {
+  switch (status) {
+    case 'solicitado':   return 0;
+    case 'confirmado':   return paymentStatus === 'pago' ? 2 : 1;
+    case 'em_andamento': return 3;
+    case 'concluido':    return 4;
+    default:             return -1;
+  }
+}
 
 function statusColor(status: BookingStatus, c: Palette) {
   const map: Record<BookingStatus, string> = {
@@ -194,7 +210,9 @@ export default function AgendamentoDetailScreen() {
   const sc = statusColor(booking.status, c);
   const sv = STATUS_UI[booking.status];
   const isCancelled = booking.status === 'cancelado';
-  const currentStepIdx = isCancelled ? -1 : STATUS_STEPS.indexOf(booking.status);
+  const paymentStatus = (booking as any).paymentStatus as string | undefined;
+  const paymentMethod = (booking as any).paymentMethod as string | undefined;
+  const currentStepIdx = getProgressIdx(booking.status, paymentStatus);
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}>
@@ -266,25 +284,49 @@ export default function AgendamentoDetailScreen() {
             </View>
           </Panel>
 
-          {/* Barra de progresso do status (só para fluxos não cancelados) */}
+          {/* Barra de progresso (inclui etapa de pagamento) */}
           {!isCancelled && (
-            <View style={styles.progressBar}>
-              {STATUS_STEPS.map((step, idx) => {
-                const done = idx <= currentStepIdx;
-                const active = idx === currentStepIdx;
-                const stepColor = done ? c.primary : c.border;
-                return (
-                  <React.Fragment key={step}>
-                    <View style={[styles.progressDot, { backgroundColor: stepColor, borderColor: stepColor,
-                      transform: [{ scale: active ? 1.3 : 1 }] }]}>
-                      {done && <FontAwesome name="check" size={8} color={c.onPrimary} />}
-                    </View>
-                    {idx < STATUS_STEPS.length - 1 && (
-                      <View style={[styles.progressLine, { backgroundColor: idx < currentStepIdx ? c.primary : c.border }]} />
-                    )}
-                  </React.Fragment>
-                );
-              })}
+            <View style={styles.progressWrap}>
+              <View style={styles.progressBar}>
+                {PROGRESS_STEPS.map((step, idx) => {
+                  const done = idx <= currentStepIdx;
+                  const active = idx === currentStepIdx;
+                  const stepColor = done ? c.primary : c.border;
+                  return (
+                    <React.Fragment key={step.key}>
+                      <View style={[styles.progressDot, { backgroundColor: stepColor, borderColor: stepColor,
+                        transform: [{ scale: active ? 1.3 : 1 }] }]}>
+                        {done && !active && <FontAwesome name="check" size={8} color={c.onPrimary} />}
+                      </View>
+                      {idx < PROGRESS_STEPS.length - 1 && (
+                        <View style={[styles.progressLine, { backgroundColor: idx < currentStepIdx ? c.primary : c.border }]} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </View>
+              <View style={styles.progressLabels}>
+                {PROGRESS_STEPS.map((step, idx) => (
+                  <Text key={step.key} style={[styles.progressLabel, idx <= currentStepIdx && { color: c.primary }]}>
+                    {step.label}
+                  </Text>
+                ))}
+              </View>
+              {booking.status === 'confirmado' && (
+                <View style={[styles.progressHintRow, {
+                  backgroundColor: paymentStatus === 'pago' ? c.success + '15' : c.warning + '15',
+                  borderColor: paymentStatus === 'pago' ? c.success + '50' : c.warning + '50',
+                }]}>
+                  <FontAwesome
+                    name={paymentStatus === 'pago' ? 'check-circle' : 'clock-o'}
+                    size={13}
+                    color={paymentStatus === 'pago' ? c.success : c.warning}
+                  />
+                  <Text style={[styles.progressHintText, { color: paymentStatus === 'pago' ? c.success : c.warning }]}>
+                    {paymentStatus === 'pago' ? 'Pagamento confirmado' : 'Aguardando pagamento'}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -314,6 +356,61 @@ export default function AgendamentoDetailScreen() {
               R$ {booking.totalPrice.toFixed(2)}
             </Text>
           </View>
+
+          {/* Seção de pagamento */}
+          {!isCancelled && booking.status !== 'solicitado' && (
+            <Panel style={styles.card}>
+              <Text style={styles.sectionLabel}>PAGAMENTO</Text>
+
+              {/* Callout colorido de status */}
+              <View style={[styles.payStatusCallout, {
+                backgroundColor: paymentStatus === 'pago' ? c.success + '18' : c.warning + '14',
+                borderColor:     paymentStatus === 'pago' ? c.success + '60' : c.warning + '55',
+              }]}>
+                <View style={[styles.payStatusIconWrap, {
+                  backgroundColor: paymentStatus === 'pago' ? c.success + '28' : c.warning + '28',
+                }]}>
+                  <FontAwesome
+                    name={paymentStatus === 'pago' ? 'check-circle' : 'clock-o'}
+                    size={28}
+                    color={paymentStatus === 'pago' ? c.success : c.warning}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.payStatusTitle, { color: paymentStatus === 'pago' ? c.success : c.warning }]}>
+                    {paymentStatus === 'pago' ? 'Pagamento confirmado' : 'Aguardando pagamento'}
+                  </Text>
+                  <Text style={[styles.payStatusSub, { color: paymentStatus === 'pago' ? c.success + 'cc' : c.warning + 'cc' }]}>
+                    {paymentStatus === 'pago'
+                      ? 'Valor recebido com sucesso'
+                      : role === 'client'
+                        ? 'Toque em "Pagar agora" abaixo'
+                        : 'O cliente ainda não realizou o pagamento'}
+                  </Text>
+                </View>
+                {paymentStatus === 'pago' && (
+                  <View style={[styles.paidBadge, { backgroundColor: c.success + '20', borderColor: c.success + '50' }]}>
+                    <Text style={[styles.paidBadgeText, { color: c.success }]}>PAGO</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Método de pagamento */}
+              {paymentMethod && (
+                <View style={[styles.payInfoRow, { marginTop: 12 }]}>
+                  <View style={[styles.payIconWrap, { backgroundColor: c.primary + '18' }]}>
+                    <FontAwesome name={paymentMethod === 'pix' ? 'qrcode' : 'credit-card'} size={14} color={c.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.payInfoLabel}>MÉTODO</Text>
+                    <Text style={styles.payInfoValue}>
+                      {paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão de crédito' : paymentMethod}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </Panel>
+          )}
 
           {/* Ações */}
           {actioning ? (
@@ -495,12 +592,13 @@ const makeStyles = (c: Palette) =>
     },
 
     // Progress bar
+    progressWrap: { marginBottom: 12, paddingHorizontal: 8 },
     progressBar: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 12,
-      paddingHorizontal: 24,
+      paddingHorizontal: 16,
+      marginBottom: 6,
     },
     progressDot: {
       width: 20, height: 20, borderRadius: 10,
@@ -508,6 +606,36 @@ const makeStyles = (c: Palette) =>
       alignItems: 'center', justifyContent: 'center',
     },
     progressLine: { flex: 1, height: 2, marginHorizontal: 4 },
+    progressLabels: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: 4,
+    },
+    progressLabel: { fontSize: 9, color: c.border, fontWeight: '600', textAlign: 'center', width: 48 },
+    progressHintRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 7,
+      marginTop: 10, borderWidth: 1, borderRadius: 10,
+      paddingHorizontal: 12, paddingVertical: 7, alignSelf: 'center',
+    },
+    progressHintText: { fontSize: 12, fontWeight: '700' },
+
+    // Payment info
+    payStatusCallout: {
+      flexDirection: 'row', alignItems: 'center', gap: 14,
+      borderWidth: 1.5, borderRadius: 14, padding: 16, marginBottom: 0,
+    },
+    payStatusIconWrap: {
+      width: 56, height: 56, borderRadius: 28,
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    },
+    payStatusTitle: { fontSize: 15, fontWeight: '800', marginBottom: 3 },
+    payStatusSub: { fontSize: 12, lineHeight: 16 },
+    payInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    payIconWrap: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+    payInfoLabel: { fontSize: 10, color: c.primary, letterSpacing: 1.5, fontWeight: '600', marginBottom: 2 },
+    payInfoValue: { fontSize: 14, color: c.cream },
+    paidBadge: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' },
+    paidBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
 
     // Section label
     sectionLabel: { fontSize: 10, color: c.primary, letterSpacing: 2, fontWeight: '700', marginBottom: 14 },

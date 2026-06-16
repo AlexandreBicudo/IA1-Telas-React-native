@@ -79,6 +79,12 @@ export async function markAllAsRead(): Promise<void> {
   await supabase.from('notifications').update({ read: true }).eq('user_id', auth.user.id).eq('read', false);
 }
 
+/** Deleta uma notificação pelo id. */
+export async function deleteNotification(notifId: string): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  await supabase.from('notifications').delete().eq('id', notifId);
+}
+
 /** Cria uma notificação in-app + dispara push para um usuário (pelo profiles.id). */
 export async function notifyUser(
   targetProfileId: string,
