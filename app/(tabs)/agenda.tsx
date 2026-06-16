@@ -128,70 +128,129 @@ function applyDateFilter(items: BookingListItem[], filter: DateFilter): BookingL
 
 // ─── SVG Illustrations ───────────────────────────────────────────────────────
 
-function ClientIllustration({ primary, success }: { primary: string; success: string }) {
+function ClientIllustration() {
   return (
-    <Svg width={120} height={96} viewBox="0 0 120 96">
-      {/* Table */}
-      <Rect x={20} y={62} width={80} height={8} rx={4} fill={primary + '40'} />
-      <Rect x={28} y={70} width={6} height={20} rx={3} fill={primary + '30'} />
-      <Rect x={86} y={70} width={6} height={20} rx={3} fill={primary + '30'} />
+    <Svg width={140} height={110} viewBox="0 0 140 110">
+      {/* Background */}
+      <Rect width={140} height={110} rx={14} fill="#1E0E06" />
+      {/* Chef hat */}
+      <Rect x={57} y={29} width={26} height={8} rx={2} fill="#F0EEE8" stroke="#D5D2CA" strokeWidth={0.8} />
+      <Path d="M57 29 Q55 11 70 9 Q85 11 83 29 Z" fill="#F0EEE8" stroke="#D5D2CA" strokeWidth={0.8} />
+      <Rect x={57} y={29} width={26} height={3} rx={1} fill="#E0DDD5" />
+      {/* Chef head */}
+      <Circle cx={70} cy={43} r={10} fill="#EBA878" />
+      <Circle cx={66} cy={42} r={1.6} fill="#6B3C1E" fillOpacity={0.45} />
+      <Circle cx={74} cy={42} r={1.6} fill="#6B3C1E" fillOpacity={0.45} />
+      <Path d="M66.5 49 Q70 52 73.5 49" fill="none" stroke="#6B3C1E" strokeWidth={1.1} strokeOpacity={0.35} strokeLinecap="round" />
+      {/* Neck */}
+      <Rect x={66} y={52} width={8} height={7} fill="#EBA878" />
+      {/* Chef coat */}
+      <Path d="M44 68 Q70 57 96 68 L94 80 Q70 73 46 80 Z" fill="#F8F6F2" />
+      <Line x1={70} y1={57} x2={70} y2={80} stroke="#E2DFDA" strokeWidth={0.9} />
+      <Circle cx={66} cy={64} r={1.2} fill="#C8A05F" />
+      <Circle cx={74} cy={64} r={1.2} fill="#C8A05F" />
+      <Circle cx={66} cy={70} r={1.2} fill="#C8A05F" />
+      <Circle cx={74} cy={70} r={1.2} fill="#C8A05F" />
+      {/* Table surface */}
+      <Path d="M12 74 L128 74 L132 88 L8 88 Z" fill="#3A1E0A" />
+      {/* Tablecloth */}
+      <Path d="M14 74 L126 74 L130 87 L10 87 Z" fill="#F2EDE0" />
+      {/* Table face */}
+      <Rect x={8} y={88} width={124} height={18} rx={2} fill="#28150A" />
       {/* Plate */}
-      <Ellipse cx={60} cy={56} rx={22} ry={8} fill={primary + '20'} />
-      <Ellipse cx={60} cy={54} rx={16} ry={5} fill={primary + '35'} />
-      {/* Food */}
-      <Circle cx={60} cy={52} r={6} fill={success + '80'} />
-      <Circle cx={54} cy={54} r={4} fill={primary + '90'} />
-      <Circle cx={66} cy={54} r={4} fill={primary + '90'} />
-      {/* Fork & knife */}
-      <Line x1={38} y1={44} x2={38} y2={66} stroke={primary} strokeWidth={2} strokeLinecap="round" />
-      <Line x1={38} y1={44} x2={35} y2={50} stroke={primary} strokeWidth={1.5} strokeLinecap="round" />
-      <Line x1={38} y1={44} x2={41} y2={50} stroke={primary} strokeWidth={1.5} strokeLinecap="round" />
-      <Line x1={82} y1={44} x2={82} y2={66} stroke={primary} strokeWidth={2} strokeLinecap="round" />
-      {/* Chef silhouette */}
-      <Circle cx={60} cy={20} r={9} fill={primary + '60'} />
-      {/* Toque (chef hat) */}
-      <Rect x={52} y={8} width={16} height={10} rx={3} fill={primary + '80'} />
-      <Ellipse cx={60} cy={9} rx={10} ry={4} fill={primary} />
-      {/* Body */}
-      <Path d="M48 40 Q60 36 72 40 L70 56 Q60 52 50 56 Z" fill={primary + '50'} />
-      {/* Star badge */}
-      <Circle cx={95} cy={16} r={10} fill={success + '30'} />
-      <Path d="M95 10 L96.5 14.5 L101 14.5 L97.5 17.5 L99 22 L95 19 L91 22 L92.5 17.5 L89 14.5 L93.5 14.5 Z" fill={success} />
+      <Ellipse cx={70} cy={76} rx={19} ry={5.5} fill="#DDD5C0" />
+      <Ellipse cx={70} cy={75} rx={15} ry={4} fill="#C8BEA8" />
+      {/* Cloche dome */}
+      <Path d="M53 76 Q53 53 70 53 Q87 53 87 76 Z" fill="#D8D4CC" stroke="#B8B4AC" strokeWidth={1} />
+      <Line x1={51} y1={76} x2={89} y2={76} stroke="#B0ACA4" strokeWidth={1.5} />
+      <Ellipse cx={70} cy={54} rx={4} ry={2.5} fill="#C8A05F" stroke="#A8842A" strokeWidth={0.8} />
+      {/* Forks (left) */}
+      <Line x1={28} y1={58} x2={28} y2={82} stroke="#CCC4A0" strokeWidth={2} strokeLinecap="round" />
+      <Line x1={34} y1={58} x2={34} y2={82} stroke="#CCC4A0" strokeWidth={2} strokeLinecap="round" />
+      <Line x1={40} y1={58} x2={40} y2={82} stroke="#CCC4A0" strokeWidth={2} strokeLinecap="round" />
+      <Line x1={46} y1={58} x2={46} y2={82} stroke="#CCC4A0" strokeWidth={2} strokeLinecap="round" />
+      <Line x1={26} y1={58} x2={26} y2={64} stroke="#CCC4A0" strokeWidth={1.3} strokeLinecap="round" />
+      <Line x1={28} y1={58} x2={28} y2={64} stroke="#CCC4A0" strokeWidth={1.3} strokeLinecap="round" />
+      <Line x1={30} y1={58} x2={30} y2={64} stroke="#CCC4A0" strokeWidth={1.3} strokeLinecap="round" />
+      <Path d="M26 64 Q28 67 30 64" fill="none" stroke="#CCC4A0" strokeWidth={1.3} />
+      {/* Knives (right) */}
+      <Line x1={94} y1={58} x2={94} y2={82} stroke="#CCC4A0" strokeWidth={2} strokeLinecap="round" />
+      <Line x1={100} y1={58} x2={100} y2={82} stroke="#CCC4A0" strokeWidth={2} strokeLinecap="round" />
+      <Line x1={106} y1={58} x2={106} y2={82} stroke="#CCC4A0" strokeWidth={2} strokeLinecap="round" />
+      <Line x1={112} y1={58} x2={112} y2={82} stroke="#CCC4A0" strokeWidth={2} strokeLinecap="round" />
+      <Path d="M94 58 Q98 62 98 70 L94 70" fill="#CCC4A0" fillOpacity={0.4} />
+      {/* Wine glass left */}
+      <Ellipse cx={18} cy={56} rx={6} ry={3.5} fill="#C8A05F" fillOpacity={0.15} stroke="#C8A05F" strokeWidth={1} />
+      <Path d="M18 60 Q14 68 16 73 L13 77" fill="none" stroke="#C8A05F" strokeWidth={1.3} strokeLinecap="round" />
+      <Line x1={10} y1={77} x2={16} y2={77} stroke="#C8A05F" strokeWidth={1.3} strokeLinecap="round" />
+      {/* Wine glass right */}
+      <Ellipse cx={122} cy={56} rx={6} ry={3.5} fill="#C8A05F" fillOpacity={0.15} stroke="#C8A05F" strokeWidth={1} />
+      <Path d="M122 60 Q126 68 124 73 L127 77" fill="none" stroke="#C8A05F" strokeWidth={1.3} strokeLinecap="round" />
+      <Line x1={124} y1={77} x2={130} y2={77} stroke="#C8A05F" strokeWidth={1.3} strokeLinecap="round" />
+      {/* Green star badge (top-right) */}
+      <Circle cx={119} cy={19} r={15} fill="#1C5C34" />
+      <Circle cx={119} cy={19} r={13} fill="#2A8A50" />
+      <Path d="M119 9 L121.5 15.5 L128.5 15.5 L123 19.5 L125.5 26 L119 22 L112.5 26 L115 19.5 L109.5 15.5 L116.5 15.5 Z" fill="#FFFFFF" />
     </Svg>
   );
 }
 
-function ChefIllustration({ success, primary }: { success: string; primary: string }) {
+function ChefIllustration() {
   return (
-    <Svg width={120} height={96} viewBox="0 0 120 96">
-      {/* Clipboard / orders */}
-      <Rect x={72} y={28} width={36} height={44} rx={4} fill={success + '25'} stroke={success + '60'} strokeWidth={1.5} />
-      <Rect x={80} y={22} width={20} height={8} rx={2} fill={success + '50'} />
-      <Line x1={79} y1={42} x2={101} y2={42} stroke={success + '60'} strokeWidth={1.5} strokeLinecap="round" />
-      <Line x1={79} y1={50} x2={101} y2={50} stroke={success + '40'} strokeWidth={1.5} strokeLinecap="round" />
-      <Line x1={79} y1={58} x2={95} y2={58} stroke={success + '40'} strokeWidth={1.5} strokeLinecap="round" />
-      <Circle cx={76} cy={42} r={3} fill={success + '80'} />
-      <Circle cx={76} cy={50} r={3} fill={success + '50'} />
-      <Circle cx={76} cy={58} r={3} fill={success + '30'} />
-      {/* Chef large */}
-      <Circle cx={44} cy={26} r={12} fill={success + '50'} />
-      {/* Toque grande */}
-      <Rect x={34} y={10} width={20} height={14} rx={4} fill={success + '70'} />
-      <Ellipse cx={44} cy={11} rx={13} ry={5} fill={success} />
-      {/* Body + apron */}
-      <Path d="M30 56 Q44 50 58 56 L56 80 Q44 74 32 80 Z" fill={success + '45'} />
-      <Rect x={37} y={54} width={14} height={24} rx={3} fill={'#fff' + '30'} />
-      {/* Arm holding pan */}
-      <Path d="M58 58 Q70 52 68 44" stroke={success + '60'} strokeWidth={6} strokeLinecap="round" fill="none" />
-      {/* Frying pan */}
-      <Ellipse cx={64} cy={40} rx={10} ry={7} fill={primary + '40'} stroke={primary + '80'} strokeWidth={1.5} />
-      <Line x1={74} y1={40} x2={82} y2={36} stroke={primary + '80'} strokeWidth={3} strokeLinecap="round" />
-      {/* Steam */}
-      <Path d="M60 32 Q62 28 60 24" stroke={primary + '50'} strokeWidth={1.5} strokeLinecap="round" fill="none" />
-      <Path d="M65 30 Q67 26 65 22" stroke={primary + '40'} strokeWidth={1.5} strokeLinecap="round" fill="none" />
-      {/* Dollar badge */}
-      <Circle cx={16} cy={20} r={12} fill={primary + '30'} />
-      <Path d="M16 12 L16 28 M12 15 Q16 13 20 15 Q20 19 16 20 Q20 21 20 25 Q16 27 12 25" stroke={primary} strokeWidth={2} strokeLinecap="round" fill="none" />
+    <Svg width={140} height={110} viewBox="0 0 140 110">
+      {/* Background */}
+      <Rect width={140} height={110} rx={14} fill="#0C1E12" />
+      {/* Chef hat */}
+      <Rect x={57} y={19} width={26} height={8} rx={2} fill="#F0EEE8" stroke="#D5D2CA" strokeWidth={0.8} />
+      <Path d="M57 19 Q55 2 70 0 Q85 2 83 19 Z" fill="#F0EEE8" stroke="#D5D2CA" strokeWidth={0.8} />
+      <Rect x={57} y={19} width={26} height={3} rx={1} fill="#E0DDD5" />
+      {/* Chef head */}
+      <Circle cx={70} cy={33} r={10} fill="#EBA878" />
+      <Circle cx={66} cy={32} r={1.6} fill="#6B3C1E" fillOpacity={0.45} />
+      <Circle cx={74} cy={32} r={1.6} fill="#6B3C1E" fillOpacity={0.45} />
+      <Path d="M66.5 38 Q70 41 73.5 38" fill="none" stroke="#6B3C1E" strokeWidth={1.1} strokeOpacity={0.35} strokeLinecap="round" />
+      {/* Neck */}
+      <Rect x={66} y={42} width={8} height={6} fill="#EBA878" />
+      {/* Chef coat */}
+      <Path d="M36 56 Q70 44 104 56 L102 106 Q70 98 38 106 Z" fill="#F8F6F2" />
+      <Line x1={70} y1={44} x2={70} y2={106} stroke="#E2DFDA" strokeWidth={0.9} />
+      <Rect x={62} y={50} width={16} height={52} rx={2} fill="#F0EDEA" />
+      <Circle cx={66} cy={54} r={1.3} fill="#8B7355" />
+      <Circle cx={74} cy={54} r={1.3} fill="#8B7355" />
+      <Circle cx={66} cy={62} r={1.3} fill="#8B7355" />
+      <Circle cx={74} cy={62} r={1.3} fill="#8B7355" />
+      {/* Arms */}
+      <Path d="M38 68 Q26 76 24 86" stroke="#EBA878" strokeWidth={9} strokeLinecap="round" fill="none" />
+      <Path d="M102 68 Q114 76 116 86" stroke="#EBA878" strokeWidth={9} strokeLinecap="round" fill="none" />
+      {/* Pot handles */}
+      <Path d="M38 88 Q28 88 28 82 Q28 76 38 76" fill="none" stroke="#555555" strokeWidth={5.5} strokeLinecap="round" />
+      <Path d="M102 88 Q112 88 112 82 Q112 76 102 76" fill="none" stroke="#555555" strokeWidth={5.5} strokeLinecap="round" />
+      {/* Pot body */}
+      <Rect x={36} y={82} width={68} height={26} rx={7} fill="#787878" />
+      <Path d="M44 84 Q50 78 54 82" fill="none" stroke="#C0C0C0" strokeWidth={2} strokeLinecap="round" />
+      {/* Pot rim */}
+      <Rect x={34} y={79} width={72} height={7} rx={3} fill="#989898" />
+      {/* Pot lid */}
+      <Rect x={36} y={72} width={68} height={10} rx={5} fill="#909090" />
+      <Rect x={38} y={72} width={64} height={5} rx={3} fill="#AAAAAA" />
+      <Ellipse cx={70} cy={71} rx={9} ry={3.5} fill="#B4B4B4" stroke="#888888" strokeWidth={0.8} />
+      {/* Dollar badge (top-left) */}
+      <Circle cx={22} cy={22} r={16} fill="#6B4A0A" />
+      <Circle cx={22} cy={22} r={14} fill="#C8A05F" />
+      <Circle cx={22} cy={22} r={11} fill="#D4AC68" />
+      <Line x1={22} y1={13} x2={22} y2={31} stroke="#6B4010" strokeWidth={1.8} strokeLinecap="round" />
+      <Path d="M18 16 Q18 13 22 13 Q27 13 27 17.5 Q27 21 22 21 Q17 21 17 25.5 Q17 29 22 29 Q27 29 27 26" fill="none" stroke="#6B4010" strokeWidth={1.6} strokeLinecap="round" />
+      {/* Clipboard (right) */}
+      <Rect x={106} y={32} width={28} height={48} rx={4} fill="#9B7040" />
+      <Rect x={106} y={32} width={28} height={48} rx={4} fill="none" stroke="#7A5028" strokeWidth={1} />
+      <Rect x={115} y={28} width={10} height={8} rx={2} fill="#7A5028" />
+      <Rect x={116} y={27} width={8} height={5} rx={1} fill="#5A3A18" />
+      <Path d="M112 46 L115 50 L121 42" fill="none" stroke="#52B788" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1={123} y1={46} x2={130} y2={46} stroke="#F5EDD8" strokeWidth={1.4} strokeOpacity={0.65} strokeLinecap="round" />
+      <Path d="M112 58 L115 62 L121 54" fill="none" stroke="#52B788" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1={123} y1={58} x2={130} y2={58} stroke="#F5EDD8" strokeWidth={1.4} strokeOpacity={0.65} strokeLinecap="round" />
+      <Path d="M112 70 L115 74 L121 66" fill="none" stroke="#52B788" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1={123} y1={70} x2={128} y2={70} stroke="#F5EDD8" strokeWidth={1.4} strokeOpacity={0.5} strokeLinecap="round" />
     </Svg>
   );
 }
@@ -371,8 +430,8 @@ export default function AgendaScreen() {
               title="Contratei um chef"
               subtitle="Serviços que você solicitou a chefs profissionais"
               borderColor={c.primary}
-              iconBg={c.primary + '15'}
-              illustration={<ClientIllustration primary={c.primary} success={c.success} />}
+              iconBg="#1E0E06"
+              illustration={<ClientIllustration />}
               onPress={() => navigateTo('client')}
             />
             <LandingCard
@@ -380,8 +439,8 @@ export default function AgendaScreen() {
               title="Sou o chef"
               subtitle="Pedidos recebidos e serviços que você vai executar"
               borderColor={c.success}
-              iconBg={c.success + '15'}
-              illustration={<ChefIllustration success={c.success} primary={c.primary} />}
+              iconBg="#0C1E12"
+              illustration={<ChefIllustration />}
               onPress={() => navigateTo('chef')}
             />
           </View>
@@ -541,6 +600,18 @@ export default function AgendaScreen() {
                                   <View style={[styles.statusDot, { backgroundColor: sv.color }]} />
                                   <Text style={[styles.statusPillText, { color: sv.color }]}>{sv.label}</Text>
                                 </View>
+                                {b.paymentStatus === 'pago' && !isHistory && (
+                                  <View style={[styles.payBadge, { backgroundColor: c.success + '22', borderColor: c.success + '60' }]}>
+                                    <FontAwesome name="check-circle" size={9} color={c.success} />
+                                    <Text style={[styles.payBadgeText, { color: c.success }]}>Pago</Text>
+                                  </View>
+                                )}
+                                {b.paymentStatus !== 'pago' && b.status === 'confirmado' && (
+                                  <View style={[styles.payBadge, { backgroundColor: c.warning + '22', borderColor: c.warning + '60' }]}>
+                                    <FontAwesome name="clock-o" size={9} color={c.warning} />
+                                    <Text style={[styles.payBadgeText, { color: c.warning }]}>Pag. pendente</Text>
+                                  </View>
+                                )}
                               </View>
                             </View>
 
@@ -641,7 +712,8 @@ const makeStyles = (c: Palette) =>
     landingIllustration: {
       width: 140,
       height: 110,
-      borderRadius: 16,
+      borderRadius: 14,
+      overflow: 'hidden',
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 16,
@@ -749,6 +821,9 @@ const makeStyles = (c: Palette) =>
     statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
     statusDot: { width: 6, height: 6, borderRadius: 3 },
     statusPillText: { fontSize: 11, fontWeight: '600' },
+
+    payBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 },
+    payBadgeText: { fontSize: 10, fontWeight: '700' },
 
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
     chip: {

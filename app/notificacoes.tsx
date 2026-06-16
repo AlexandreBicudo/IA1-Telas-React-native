@@ -18,6 +18,7 @@ import {
   getMyNotifications,
   markAsRead,
   markAllAsRead,
+  deleteNotification,
   type AppNotification,
   type NotifType,
 } from '@/services/notificationCenterService';
@@ -85,12 +86,13 @@ function buildGroups(notifs: AppNotification[]): NotifGroup[] {
 // ─── Card de notificação ──────────────────────────────────────────────────────
 
 function NotifCard({
-  n, c, styles, onPress,
+  n, c, styles, onPress, onDelete,
 }: {
   n: AppNotification;
   c: Palette;
   styles: ReturnType<typeof makeStyles>;
   onPress: () => void;
+  onDelete: () => void;
 }) {
   const { icon, color } = notifIcon(n.type);
   const col = color(c);
@@ -112,8 +114,11 @@ function NotifCard({
         <Text style={styles.notifTime}>{timeAgo(n.createdAt)}</Text>
       </View>
       {n.bookingId && (
-        <FontAwesome name="chevron-right" size={13} color={c.hint} />
+        <FontAwesome name="chevron-right" size={13} color={c.hint} style={{ marginRight: 4 }} />
       )}
+      <TouchableOpacity onPress={onDelete} hitSlop={10} style={styles.deleteBtn}>
+        <FontAwesome name="trash-o" size={16} color={c.danger} />
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 }
@@ -153,6 +158,11 @@ export default function NotificacoesScreen() {
   const handleMarkAll = async () => {
     await markAllAsRead();
     setNotifs((prev) => prev.map((x) => ({ ...x, read: true })));
+  };
+
+  const handleDelete = async (id: string) => {
+    setNotifs((prev) => prev.filter((x) => x.id !== id));
+    await deleteNotification(id);
   };
 
   const unreadCount = notifs.filter((n) => !n.read).length;
@@ -206,7 +216,7 @@ export default function NotificacoesScreen() {
               {/* Cards do grupo */}
               <View style={styles.groupItems}>
                 {group.items.map((n) => (
-                  <NotifCard key={n.id} n={n} c={c} styles={styles} onPress={() => handleTap(n)} />
+                  <NotifCard key={n.id} n={n} c={c} styles={styles} onPress={() => handleTap(n)} onDelete={() => handleDelete(n.id)} />
                 ))}
               </View>
             </View>
@@ -267,6 +277,7 @@ const makeStyles = (c: Palette) =>
     unreadDot: { width: 8, height: 8, borderRadius: 4 },
     notifBody: { fontSize: 13, color: c.muted, lineHeight: 18 },
     notifTime: { fontSize: 11, color: c.hint, marginTop: 2 },
+    deleteBtn: { padding: 6, marginLeft: 2 },
 
     // Empty
     emptyWrap: { alignItems: 'center', marginTop: 80, gap: 14, paddingHorizontal: 20 },
