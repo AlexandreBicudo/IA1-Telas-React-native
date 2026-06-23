@@ -96,13 +96,12 @@ export async function notifyUser(
   if (!isSupabaseConfigured) return;
 
   await Promise.allSettled([
-    supabase.from('notifications').insert({
-      user_id: targetProfileId,
-      type,
-      title,
-      body,
-      booking_id: bookingId ?? null,
-      read: false,
+    supabase.rpc('create_notification', {
+      p_user_id: targetProfileId,
+      p_type: type,
+      p_title: title,
+      p_body: body,
+      p_booking_id: bookingId ?? null,
     }),
     getPushToken(targetProfileId).then((token) => {
       if (token) return sendPushToToken(token, title, body);

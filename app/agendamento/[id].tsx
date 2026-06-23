@@ -154,11 +154,10 @@ export default function AgendamentoDetailScreen() {
     if (reviewRating === 0 || !booking) return;
     try {
       setSubmittingReview(true);
-      const isReviewingChef = role === 'client';
       await createReview({
         bookingId,
-        revieweeId: isReviewingChef ? booking.chefProfileId : booking.clientId,
-        chefId: isReviewingChef ? booking.chefId : undefined,
+        revieweeId: booking.chefProfileId,
+        chefId: booking.chefId,
         rating: reviewRating,
         comment: reviewComment,
       });
@@ -221,7 +220,7 @@ export default function AgendamentoDetailScreen() {
       <Modal visible={showReviewModal} transparent animationType="fade" onRequestClose={() => setShowReviewModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBox, { backgroundColor: c.card, borderColor: c.border }]}>
-            <Text style={styles.modalTitle}>Avaliar {role === 'client' ? booking?.chefName : booking?.clientName}</Text>
+            <Text style={styles.modalTitle}>Avaliar {booking?.chefName}</Text>
             <View style={styles.starsRow}>
               {[1, 2, 3, 4, 5].map((n) => (
                 <TouchableOpacity key={n} onPress={() => setReviewRating(n)} hitSlop={8}>
@@ -435,8 +434,8 @@ export default function AgendamentoDetailScreen() {
             </View>
           )}
 
-          {/* Avaliação */}
-          {booking.status === 'concluido' && (
+          {/* Avaliação — somente o contratante avalia */}
+          {booking.status === 'concluido' && role === 'client' && (
             reviewed ? (
               <View style={styles.reviewedBadge}>
                 <FontAwesome name="star" size={14} color={c.primary} />
@@ -445,7 +444,7 @@ export default function AgendamentoDetailScreen() {
             ) : (
               <TouchableOpacity style={styles.reviewBtn} onPress={() => { setReviewRating(0); setReviewComment(''); setShowReviewModal(true); }} activeOpacity={0.8}>
                 <FontAwesome name="star-o" size={16} color={c.primary} />
-                <Text style={styles.reviewBtnText}>Avaliar {role === 'client' ? 'o Chef' : 'o Cliente'}</Text>
+                <Text style={styles.reviewBtnText}>Avaliar o Chef</Text>
               </TouchableOpacity>
             )
           )}
